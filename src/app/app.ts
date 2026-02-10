@@ -1,6 +1,6 @@
 import { Grid, type Point } from "../editor/grid";
 import { clientPointToSvgPoint } from "../editor/snapping";
-import type { ComponentInstance, RotationDeg } from "../editor/types";
+import type { RotationDeg } from "../editor/types";
 import { EditorState } from "../editor/state";
 import { getComponentType, listComponentTypes } from "../editor/registry";
 import { SchematicSvg } from "../render/schematicSvg";
@@ -8,14 +8,36 @@ import { hitTest } from "../editor/hitTest";
 import { normalizeAndSegmentWires } from "../editor/wireNormalize";
 import { renderAll } from "./renderAll";
 import { createCameraController } from "../editor/camera";
+import { bindInput } from "./bindInput";
+import { manhattanSegments } from "../editor/geom";
+import { createMoveAndReroute } from "../editor/moveAndReroute";
+import { createTempToolbar } from "../ui/tempToolbar";
 
-
+/**
+ * V1 uses UUIDs for everything. Works fine for an in-memory editor.
+ * (If you later add save/load, you’ll keep these IDs stable across sessions.)
+ */
 function newId(): string {
   return crypto.randomUUID();
 }
 
 export class App {
+  /**
+   * App.start() is the top-level “wiring harness”.
+   * It:
+   * - creates UI + canvas
+   * - constructs editor state + camera
+   * - defines mode state + helper actions
+   * - binds input (pointer + keyboard)
+   * - renders initial frame
+   *
+   * Important: App does NOT do heavy interaction logic itself anymore.
+   * Drag/reroute is owned by moveAndReroute; pointer/keyboard events are owned by bindInput.
+   */
   start() {
+    // -----------------------------
+    // 1) Host bootstrapping
+    // -----------------------------
     const host = document.querySelector<HTMLDivElement>("#app");
     if (!host) throw new Error("Missing #app element");
 
@@ -23,45 +45,37 @@ export class App {
     host.style.width = "100%";
     host.style.height = "100vh";
 
-    // --- TEMP TOOLBAR ---
-    const toolbar = document.createElement("div");
-    toolbar.style.display = "flex";
-    toolbar.style.gap = "8px";
-    toolbar.style.padding = "8px";
-    toolbar.style.borderBottom = "1px solid #ddd";
-    toolbar.style.fontFamily = "system-ui, sans-serif";
+    // -----------------------------
+    // 2) Component registry (data for UI + placement)
+    // -----------------------------
+    const availableTypes = listComponentTypes();
+    if (availableTypes.length === 0) throw new Error("No component types registered.");
 
-    const btnPlaceComponent = document.createElement("button");
-    btnPlaceComponent.style.padding = "6px 10px";
-    toolbar.appendChild(btnPlaceComponent);
+    // Which component type we place in place-mode.
+    let activeTypeId = availableTypes[0].typeId;
 
-    const selComponentType = document.createElement("select");
-    selComponentType.style.padding = "6px 10px";
-    toolbar.appendChild(selComponentType);
+    // -----------------------------
+    // 3) Temporary UI scaffold (will be replaced later)
+    // -----------------------------
+    const ui = createTempToolbar(host, availableTypes);
+    ui.selComponentType.value = activeTypeId;
+    ui.setWireLabel(false);
+    ui.setPlaceLabel(false);
 
-    const btnWire = document.createElement("button");
-    btnWire.style.padding = "6px 10px";
-    btnWire.textContent = "Wire: OFF";
-    toolbar.appendChild(btnWire);
-
-    const canvasHost = document.createElement("div");
-    canvasHost.style.height = "calc(100vh - 42px)";
-    canvasHost.style.width = "100%";
-
-    host.appendChild(toolbar);
-    host.appendChild(canvasHost);
-
-    // --- STATE ---
+    // -----------------------------
+    // 4) Core editor state + view/camera
+    // -----------------------------
     const state = new EditorState();
 
-    // --- CANVAS ---
     const grid = new Grid(25);
-    const view = new SchematicSvg(canvasHost);
+    const view = new SchematicSvg(ui.canvasHost);
+
+    // Hard-coded world bounds for V1 (fine for now).
+    // Later: compute from content bounds or make this infinite.
     const WORLD_BOUNDS = { x: 0, y: 0, width: 1200, height: 800 };
     const cam = createCameraController(view.svg, WORLD_BOUNDS);
 
-
-
+    // Prevent middle mouse click from opening browser auto-scroll UI.
     view.svg.addEventListener("auxclick", (e) => {
       if ((e as MouseEvent).button === 1) e.preventDefault();
     });
@@ -69,287 +83,102 @@ export class App {
       if ((e as MouseEvent).button === 1) e.preventDefault();
     });
 
-    // --- TOOL STATE ---
+    // -----------------------------
+    // 5) Tool / interaction state (ephemeral UI state)
+    // -----------------------------
     let isPlaceMode = false;
+    let isWireMode = false;
+    let isMouseOverCanvas = false;
+
+    // Place-mode preview
     let previewRotation: RotationDeg = 0;
     let previewPos: Point = { x: 0, y: 0 };
-    let isMouseOverCanvas = false;
-    let showDebug = true;
-    let isWireMode = false;
+
+    // Wire-mode chain state
     let wireStart: Point | null = null;
     let wirePreviewEnd: Point | null = null;
-    let rerouteOwnerId: string | null = null;
-    let rerouteAttachments: DragWireAttachment[] = [];
 
-    let moveDrag:
-      | {
-          id: string;
-          offset: Point;
-        }
-      | null = null;
+    // Debug overlay toggle (ports / hit boxes etc.)
+    let showDebug = true;
 
+    // -----------------------------
+    // 6) Small “actions” that mutate state (App-level commands)
+    // -----------------------------
 
-    // --- COMPONENT TYPE SELECTION ---
-    const availableTypes = listComponentTypes();
-    if (availableTypes.length === 0) throw new Error("No component types registered.");
-
-    let activeTypeId = availableTypes[0].typeId;
-
-    // populate dropdown
-    for (const t of availableTypes) {
-      const opt = document.createElement("option");
-      opt.value = t.typeId;
-      opt.textContent = t.displayName;
-      selComponentType.appendChild(opt);
-    }
-    selComponentType.value = activeTypeId;
-
+    /**
+     * Keeps the “Place Component” button label synced with:
+     * - whether we’re in place mode
+     * - which component type is active
+     */
     const updatePlaceButtonText = () => {
       if (!isPlaceMode) {
-        btnPlaceComponent.textContent = "Place Component: OFF";
-      } else {
-        const t = getComponentType(activeTypeId);
-        btnPlaceComponent.textContent = `Place Component: ON (${t.displayName})`;
+        ui.setPlaceLabel(false);
+        return;
       }
+
+      const t = getComponentType(activeTypeId);
+      ui.setPlaceLabel(true, t.displayName);
     };
 
+    /**
+     * Normalise wire geometry: merges collinear segments, splits overlaps, etc.
+     * This is called after any operation that edits wires.
+     */
+    const normalizeWires = () => {
+      state.wires = normalizeAndSegmentWires(state.wires);
+    };
+
+    /**
+     * Delete whatever is currently selected.
+     * (Place mode ignores delete/backspace because you’re not “editing”, you’re “placing”.)
+     */
     const deleteSelection = () => {
       const sel = state.selection;
       if (!sel) return;
 
       switch (sel.kind) {
-        case "component":
-          state.components = state.components.filter(c => c.id !== sel.id);
-          clearSelection();
-          doRender();
-          break;
-
-        case "wire":
-          state.wires = state.wires.filter(w => w.id !== sel.id);
-          normalizeWires();
-          clearSelection();
-          doRender();
-          break;
-      }
-    };
-
-    const normalizeWires = () => {
-      state.wires = normalizeAndSegmentWires(state.wires);
-    };
-
-
-    const rotateSelection = () => {
-      const sel = state.selection;
-      if (!sel) return;
-
-      if (sel.kind === "component") {
-        const inst = state.components.find(c => c.id === sel.id);
-        if (!inst) {
-          clearSelection();
+        case "component": {
+          state.components = state.components.filter((c) => c.id !== sel.id);
+          move?.clearSelection(); // defensive; move exists after construction
           doRender();
           return;
         }
 
-        inst.rotation = (((inst.rotation + 90) % 360) as RotationDeg);
-        doRender();
-      }
-
-      // Future: if sel.kind === "wire" { ... }
-    };
-
-
-
-
-
-    type DragWireAttachment = {
-      fixed: Point;                 // the non-moving end (e.g. 0,6)
-      incomingAxis: "h" | "v";      // orientation of the original segment
-      portOffset: Point;            // port offset relative to component pos
-    };
-
-    let dragWirePreview: { a: Point; b: Point }[] = [];
-
-    const rebuildReroutePreview = (
-      inst: ComponentInstance,
-      attachments: DragWireAttachment[]
-    ) => {
-      dragWirePreview = [];
-
-      for (const a of attachments) {
-        const portPos = {
-          x: inst.pos.x + a.portOffset.x,
-          y: inst.pos.y + a.portOffset.y,
-        };
-
-        dragWirePreview.push(
-          ...manhattanFromFixed(a.fixed, portPos, a.incomingAxis)
-        );
-      }
-    };
-
-
-    const beginRerouteForSelectedComponent = (id: string) => {
-      const inst = state.components.find((c) => c.id === id);
-      if (!inst) return;
-
-      const attachments: DragWireAttachment[] = [];
-      const type = getComponentType(inst.typeId);
-      const ports = type.portWorldPositions(inst);
-
-      for (const port of ports) {
-        for (let i = state.wires.length - 1; i >= 0; i--) {
-          const w = state.wires[i];
-
-          const isA = w.a.x === port.pos.x && w.a.y === port.pos.y;
-          const isB = w.b.x === port.pos.x && w.b.y === port.pos.y;
-          if (!isA && !isB) continue;
-
-          const fixed = isA ? w.b : w.a;
-          const incomingAxis = w.a.y === w.b.y ? "h" : "v";
-
-          attachments.push({
-            fixed,
-            incomingAxis,
-            portOffset: {
-              x: port.pos.x - inst.pos.x,
-              y: port.pos.y - inst.pos.y,
-            },
-          });
-
-          // delete the original attached segment (ONLY ONCE PER SELECTION)
-          state.wires.splice(i, 1);
+        case "wire": {
+          state.wires = state.wires.filter((w) => w.id !== sel.id);
+          normalizeWires();
+          move?.clearSelection();
+          doRender();
+          return;
         }
       }
+    };
 
-      // Store attachments on the drag state (even if not dragging yet)
-      // so updateDrag can use them.
-      rerouteAttachments = attachments;
-      rerouteOwnerId = id;
+    /**
+     * Rotate selected component by +90 degrees.
+     * (Preview rotation is handled by bindInput via setPreviewRotation.)
+     */
+    const rotateSelection = () => {
+      const sel = state.selection;
+      if (!sel) return;
 
-      rebuildReroutePreview(inst, attachments);
+      if (sel.kind !== "component") return;
+
+      const inst = state.components.find((c) => c.id === sel.id);
+      if (!inst) {
+        move?.clearSelection();
+        doRender();
+        return;
+      }
+
+      inst.rotation = (((inst.rotation + 90) % 360) as RotationDeg);
       doRender();
     };
 
-    const startDrag = (id: string, pointerWorld: Point) => {
-      const inst = state.components.find((c) => c.id === id);
-      if (!inst) return;
-
-      // Ensure reroute session exists (preview ownership), but don't rely on `drag`
-      if (rerouteOwnerId !== id) {
-        beginRerouteForSelectedComponent(id);
-      }
-
-      moveDrag = {
-        id,
-        offset: {
-          x: inst.pos.x - pointerWorld.x,
-          y: inst.pos.y - pointerWorld.y,
-        },
-      };
-    };
-
-
-
-    const updateDrag = (pointerWorld: Point) => {
-      const d = moveDrag;
-      if (!d) return;
-
-      const inst = state.components.find((c) => c.id === d.id);
-      if (!inst) return;
-
-      const target = {
-        x: pointerWorld.x + d.offset.x,
-        y: pointerWorld.y + d.offset.y,
-      };
-
-      const snapped = grid.snap(target);
-      if (!view.isInsideCanvas(snapped)) return;
-
-      inst.pos = snapped;
-
-      // only rebuild preview if this component owns the reroute session
-      if (rerouteOwnerId === d.id) {
-        rebuildReroutePreview(inst, rerouteAttachments);
-      }
-
-      doRender();
-    };
-
-
-
-    const clearSelection = () => {
-      // Commit any live reroute preview
-      commitReroutePreview();
-
-      // End reroute session
-      rerouteOwnerId = null;
-      rerouteAttachments = [];
-      dragWirePreview = [];
-
-      // End any movement drag (defensive)
-      moveDrag = null;
-
-      // Clear selection
-      state.selection = null;
-    };
-
-    const commitReroutePreview = () => {
-      if (dragWirePreview.length === 0) return;
-
-      for (const s of dragWirePreview) {
-        if (s.a.x === s.b.x && s.a.y === s.b.y) continue;
-
-        state.wires.push({
-          id: newId(),
-          a: s.a,
-          b: s.b,
-        });
-      }
-
-      normalizeWires();          // ✅ once, after all pushes
-      dragWirePreview = [];
-    };
-
-
-
-    const manhattanSegments = (a: Point, b: Point): { a: Point; b: Point }[] => {
-      // Deterministic elbow: horizontal then vertical
-      if (a.x === b.x || a.y === b.y) return [{ a, b }];
-
-      const mid: Point = { x: b.x, y: a.y };
-      return [
-        { a, b: mid },
-        { a: mid, b },
-      ];
-    };
-
-    const manhattanFromFixed = (
-      fixed: Point,
-      target: Point,
-      incomingAxis: "h" | "v"
-    ): { a: Point; b: Point }[] => {
-      // aligned already
-      if (fixed.x === target.x || fixed.y === target.y) {
-        return [{ a: fixed, b: target }];
-      }
-
-      let mid: Point;
-
-      if (incomingAxis === "h") {
-        // original was horizontal → go vertical first
-        mid = { x: fixed.x, y: target.y };
-      } else {
-        // original was vertical → go horizontal first
-        mid = { x: target.x, y: fixed.y };
-      }
-
-      return [
-        { a: fixed, b: mid },
-        { a: mid, b: target },
-      ];
-    };
-
-
+    /**
+     * Helper: is a snapped point exactly on any component port?
+     * Used to decide whether a wire chain should terminate.
+     */
     const isComponentPortPoint = (p: Point): boolean => {
       for (const inst of state.components) {
         const t = getComponentType(inst.typeId);
@@ -360,6 +189,10 @@ export class App {
       return false;
     };
 
+    /**
+     * Helper: is a snapped point on any wire segment (axis-aligned only in V1)?
+     * Used to terminate wire chains when clicking onto existing wires.
+     */
     const isPointOnWire = (p: Point): boolean => {
       for (const w of state.wires) {
         // vertical segment
@@ -377,70 +210,70 @@ export class App {
           const maxX = Math.max(w.a.x, w.b.x);
           if (p.x >= minX && p.x <= maxX) return true;
         }
-
-        // (shouldn't happen in V1, but just ignore if diagonal)
       }
       return false;
     };
 
-
+    /**
+     * Mode toggles are App-owned because they affect:
+     * - cursor style
+     * - what a click does
+     * - which state gets cleared
+     */
     const setPlaceMode = (enabled: boolean) => {
       isPlaceMode = enabled;
 
       if (enabled) {
-        // Turn off wire mode when entering place mode
+        // Place mode and wire mode are mutually exclusive
         isWireMode = false;
-        btnWire.textContent = "Wire: OFF";
+        ui.setWireLabel(false);
 
+        // Cancel any in-progress wire chain
         wireStart = null;
         wirePreviewEnd = null;
 
-        // Clear selection (you already wanted this)
-        clearSelection();
+        // Leaving selection state helps avoid "placing while something selected"
+        move?.clearSelection();
 
-        // Cursor back to normal
         view.svg.style.cursor = "default";
       }
 
       updatePlaceButtonText();
       doRender();
     };
-
 
     const setWireMode = (enabled: boolean) => {
       isWireMode = enabled;
 
       if (enabled) {
+        // Wire mode and place mode are mutually exclusive
         isPlaceMode = false;
-        clearSelection();
+
+        move?.clearSelection();
+
         wireStart = null;
         wirePreviewEnd = null;
+
         view.svg.style.cursor = "crosshair";
+        ui.setWireLabel(true);
         updatePlaceButtonText();
-        btnWire.textContent = "Wire: ON";
       } else {
         wireStart = null;
         wirePreviewEnd = null;
+
         view.svg.style.cursor = "default";
-        btnWire.textContent = "Wire: OFF";
+        ui.setWireLabel(false);
       }
 
       doRender();
     };
 
-
-      btnWire.addEventListener("click", () => setWireMode(!isWireMode));
-
-
-    selComponentType.addEventListener("change", () => {
-      activeTypeId = selComponentType.value;
-      updatePlaceButtonText();
-      doRender();
-    });
-
-    btnPlaceComponent.addEventListener("click", () => {
-      setPlaceMode(!isPlaceMode);
-    });
+    // -----------------------------
+    // 7) Render function (single source of truth for drawing)
+    // -----------------------------
+    // IMPORTANT: doRender exists before move is created, so we use a `let move` declared below.
+    // moveAndReroute will call requestRender() during drag updates.
+    let move: ReturnType<typeof createMoveAndReroute> | null = null;
 
     const doRender = () => {
       renderAll({
@@ -462,300 +295,126 @@ export class App {
         previewPos,
         previewRotation,
 
-        dragWirePreview,
+        // Preview wires used while dragging a component with attached wires
+        dragWirePreview: move ? move.dragWirePreview() : [],
       });
     };
 
-
-    // Mouse move updates preview position
-    view.svg.addEventListener("mousemove", (e: MouseEvent) => {
-      if (cam.isPanning()) return;
-      const svgPoint = clientPointToSvgPoint(view.svg, {
-        x: e.clientX,
-        y: e.clientY,
-      });
-
-      const inside = view.isInsideCanvas(svgPoint);
-      isMouseOverCanvas = inside;
-
-      if (!inside) {
-        if (isPlaceMode || isWireMode) doRender();
-        return;
-      }
-
-      const snapped = grid.snap(svgPoint);
-
-      if (isPlaceMode) {
-        previewPos = snapped;
-        doRender();
-        return;
-      }
-
-      if (isWireMode) {
-        wirePreviewEnd = snapped;
-        doRender();
-        return;
-      }
+    // -----------------------------
+    // 8) Construct reroute/drag system (owns drag+reroute state machine)
+    // -----------------------------
+    move = createMoveAndReroute({
+      state,
+      grid,
+      view,
+      getComponentType,
+      newId,
+      normalizeWires,
+      requestRender: doRender,
     });
 
+    // -----------------------------
+    // 9) UI event wiring
+    // -----------------------------
+    ui.btnWire.addEventListener("click", () => setWireMode(!isWireMode));
 
-
-    view.svg.addEventListener("mouseleave", () => {
-      isMouseOverCanvas = false;
-      wirePreviewEnd = null;
+    ui.selComponentType.addEventListener("change", () => {
+      activeTypeId = ui.selComponentType.value;
+      updatePlaceButtonText();
       doRender();
     });
 
-    // Right-click cancels placement (back to "select"/idle)
-    view.svg.addEventListener("contextmenu", (e: MouseEvent) => {
-      e.preventDefault();
-
-      // Place mode: unchanged
-      if (isPlaceMode) {
-        setPlaceMode(false);
-        return;
-      }
-
-      // Wire mode
-      if (isWireMode) {
-        if (wireStart) {
-          // First right-click: end current wire chain
-          wireStart = null;
-          wirePreviewEnd = null;
-          doRender();
-          return;
-        }
-
-        // Second right-click: exit wire mode
-        setWireMode(false);
-        return;
-      }
+    ui.btnPlaceComponent.addEventListener("click", () => {
+      setPlaceMode(!isPlaceMode);
     });
 
-    view.svg.addEventListener(
-      "wheel",
-      (e: WheelEvent) => {
-        e.preventDefault();
-        const mouse = clientPointToSvgPoint(view.svg, { x: e.clientX, y: e.clientY });
-        const zoomFactor = e.deltaY < 0 ? 0.9 : 1.1;
-        cam.zoomAt(mouse, zoomFactor);
-        doRender();
+    // -----------------------------
+    // 10) Pointer + keyboard input wiring
+    // -----------------------------
+    bindInput({
+      view,
+      doRender,
+      cam,
+      clientPointToSvgPoint,
+
+      // mode controls
+      isPlaceMode: () => isPlaceMode,
+      setPlaceMode,
+      isWireMode: () => isWireMode,
+      setWireMode,
+
+      // wire chain state (wire mode)
+      wireStart: () => wireStart,
+      setWireStart: (p) => {
+        wireStart = p;
       },
-      { passive: false }
-    );
+      setWirePreviewEnd: (p) => {
+        wirePreviewEnd = p;
+      },
 
+      // place-mode hover state
+      setIsMouseOverCanvas: (v) => {
+        isMouseOverCanvas = v;
+      },
+      setPreviewPos: (p) => {
+        previewPos = p;
+      },
 
+      // editor / geometry deps
+      grid,
+      state,
+      newId,
+      normalizeWires,
+      isComponentPortPoint,
+      isPointOnWire,
+      manhattanSegments,
+      hitTest,
+      getComponentType,
 
+      // reroute/drag system (single source of truth)
+      getRerouteOwnerId: move.getRerouteOwnerId,
+      setRerouteOwnerId: move.setRerouteOwnerId,
+      commitReroutePreview: move.commitReroutePreview,
+      clearSelection: move.clearSelection,
 
-    // Place on pointerdown
-    view.svg.addEventListener("pointerdown", (e: PointerEvent) => {
-      // Middle mouse: pan always
-      if (e.button === 1) {
-        cam.startPan(e);
-        e.preventDefault();
-        return;
-      }
+      // drag state queries for pointermove/pointerup
+      setMoveDragNull: move.clearMoveDrag,
+      hasMoveDrag: move.hasMoveDrag,
+      moveDragActive: move.moveDragActive,
+      clearMoveDrag: move.clearMoveDrag,
 
-      // Left only from here
-      if (e.button !== 0) return;
+      // drag actions
+      beginRerouteForSelectedComponent: move.beginRerouteForSelectedComponent,
+      startDrag: move.startDrag,
+      updateDrag: move.updateDrag,
 
-      const svgPoint = clientPointToSvgPoint(view.svg, { x: e.clientX, y: e.clientY });
+      // placement data
+      isMouseOverCanvas: () => isMouseOverCanvas,
+      activeTypeId: () => activeTypeId,
+      previewPos: () => previewPos,
+      previewRotation: () => previewRotation,
 
-      // --- WIRE MODE ---
-      if (isWireMode) {
-        if (!view.isInsideCanvas(svgPoint)) return;
+      // command-style actions
+      deleteSelection,
+      rotateSelection,
 
-        const p = grid.snap(svgPoint);
-        const onPort = isComponentPortPoint(p);
-        const onWire = isPointOnWire(p);
+      // debug + preview rotation (keyboard toggles)
+      getShowDebug: () => showDebug,
+      setShowDebug: (v) => {
+        showDebug = v;
+      },
 
-        if (!wireStart) {
-          wireStart = p;
-          wirePreviewEnd = p;
-          doRender();
-          e.preventDefault();
-          return;
-        }
-
-        const segs = manhattanSegments(wireStart, p);
-        for (const s of segs) {
-          if (s.a.x === s.b.x && s.a.y === s.b.y) continue;
-          state.wires.push({ id: newId(), a: s.a, b: s.b });
-        }
-        normalizeWires();
-
-        if (onPort || onWire) {
-          wireStart = null;
-          wirePreviewEnd = null;
-        } else {
-          wireStart = p;
-          wirePreviewEnd = p;
-        }
-
-        doRender();
-        e.preventDefault();
-        return;
-      }
-
-      // --- SELECTION + DRAG MODE ---
-      if (!isPlaceMode) {
-        if (view.isInsideCanvas(svgPoint)) {
-          const hit = hitTest(state, svgPoint);
-
-          // Empty-space left drag => pan
-          if (!hit) {
-            cam.startPan(e);
-            e.preventDefault();
-            return;
-          }
-
-          // Commit old reroute only if clicking away from current reroute owner
-          if (rerouteOwnerId && (hit.kind !== "component" || hit.id !== rerouteOwnerId)) {
-            commitReroutePreview();
-            rerouteOwnerId = null;
-            moveDrag = null;
-          }
-
-          state.selection = hit;
-
-          if (hit.kind === "component") {
-            if (rerouteOwnerId !== hit.id) beginRerouteForSelectedComponent(hit.id);
-
-            startDrag(hit.id, svgPoint);
-            view.svg.setPointerCapture(e.pointerId);
-
-            doRender();
-            e.preventDefault();
-            return;
-          }
-
-          doRender();
-          e.preventDefault();
-          return;
-        } else {
-          clearSelection();
-          doRender();
-          e.preventDefault();
-          return;
-        }
-      }
-
-      // --- PLACEMENT MODE ---
-      if (!isMouseOverCanvas) return;
-
-      const t = getComponentType(activeTypeId);
-      const inst: ComponentInstance = {
-        id: newId(),
-        typeId: activeTypeId,
-        pos: previewPos,
-        rotation: previewRotation,
-        params: t.defaultParams(),
-      };
-
-      state.components.push(inst);
-      clearSelection();
-      doRender();
-      e.preventDefault();
+      getPreviewRotation: () => previewRotation,
+      setPreviewRotation: (r) => {
+        previewRotation = r;
+      },
     });
 
-
-    view.svg.addEventListener("pointermove", (e: PointerEvent) => {
-      if (cam.isPanning()) {
-        cam.updatePan(e);
-        e.preventDefault();
-      return;
-  }
-      if (isPlaceMode) return;
-      if (!moveDrag) return;
-
-      const svgPoint = clientPointToSvgPoint(view.svg, {
-        x: e.clientX,
-        y: e.clientY,
-      });
-
-      updateDrag(svgPoint);
-      e.preventDefault();
-    });
-
-
-    view.svg.addEventListener("pointerup", (e: PointerEvent) => {
-      if (cam.isPanning()) {
-        const wasMoved = cam.panMoved();
-        cam.endPan();
-
-        if (!wasMoved) {
-          // ✅ empty-space click
-          clearSelection();
-          doRender();
-        } else {
-          // optional: one full redraw at end of pan
-          doRender();
-        }
-
-        e.preventDefault();
-        return;
-      }
-
-      if (!moveDrag) return;
-
-      moveDrag = null;
-
-      try {
-        view.svg.releasePointerCapture(e.pointerId);
-      } catch {}
-
-      doRender();
-      e.preventDefault();
-    });
-
-
-    // Keys: D toggle debug, R rotate preview
-    window.addEventListener("keydown", (e: KeyboardEvent) => {
-      const k = e.key.toLowerCase();
-
-      if (k === "escape") {
-        if (isWireMode) {
-          wireStart = null;
-          wirePreviewEnd = null;
-          setWireMode(false);
-          return;
-        }
-      }
-
-      if (k === "w") {
-        setWireMode(!isWireMode);
-        return;
-      }
-
-
-      if (k === "delete" || k === "backspace") {
-        if (isPlaceMode) return;
-        deleteSelection();
-        e.preventDefault();
-        return;
-      }
-
-      if (k === "d") {
-        showDebug = !showDebug;
-        doRender();
-        return;
-      }
-
-      if (k === "r") {
-        if (isPlaceMode) {
-          previewRotation = ((previewRotation + 90) % 360) as RotationDeg;
-          doRender();
-        } else {
-          rotateSelection();
-        }
-        return;
-      }
-    
-    });
-
-    // Start
+    // -----------------------------
+    // 11) Start
+    // -----------------------------
     updatePlaceButtonText();
     doRender();
-    console.log("Component system: generic placement + debug ports.");
+    console.log("Component system: V1 editor booted.");
   }
 }
