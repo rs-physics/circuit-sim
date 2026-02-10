@@ -1,6 +1,8 @@
-import type { ComponentInstance } from "./types";
+import type { ComponentInstance, WireSegment } from "./types";
+import type { Selection } from "./selection";
 
 export class EditorState {
   components: ComponentInstance[] = [];
-  selectedId: string | null = null;
+  wires: WireSegment[] = [];
+  selection: Selection = null;
 }

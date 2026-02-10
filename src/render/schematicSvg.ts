@@ -13,6 +13,7 @@ function svgEl<K extends keyof SVGElementTagNameMap>(
 export class SchematicSvg {
     readonly svg: SVGSVGElement;
     private readonly mainG: SVGGElement;
+    private readonly wiresG: SVGGElement;
     private readonly previewG: SVGGElement;
     private readonly debugG: SVGGElement;
 
@@ -32,13 +33,17 @@ export class SchematicSvg {
     // Main content (grid + placed components)
     this.mainG = svgEl("g");
 
-    // Preview layer (hover ghost)
-    this.previewG = svgEl("g");
+    // Wires
+    this.wiresG = svgEl("g");
 
     // Debug layer
     this.debugG = svgEl("g");
 
+    // Preview layer (hover ghost)
+    this.previewG = svgEl("g");
+
     this.svg.appendChild(this.mainG);
+    this.svg.appendChild(this.wiresG);  // wires
     this.svg.appendChild(this.debugG);   // debug above main
     this.svg.appendChild(this.previewG); // preview on top
 
@@ -48,9 +53,8 @@ export class SchematicSvg {
 
 
     clear() {
-    while (this.mainG.firstChild) {
-        this.mainG.removeChild(this.mainG.firstChild);
-    }
+        while (this.mainG.firstChild) this.mainG.removeChild(this.mainG.firstChild);
+        while (this.wiresG.firstChild) this.wiresG.removeChild(this.wiresG.firstChild);
     this.clearPreview();
     }
 
@@ -91,6 +95,26 @@ export class SchematicSvg {
       this.debugG.appendChild(g);
     }
 
+    drawWireSegment(
+      seg: { a: Point; b: Point },
+      opts: { preview?: boolean; selected?: boolean } = {}
+    ) {
+      const isPreview = !!opts.preview;
+      const isSelected = !!opts.selected;
+
+      this.wiresG.appendChild(
+        svgEl("line", {
+          x1: `${seg.a.x}`,
+          y1: `${seg.a.y}`,
+          x2: `${seg.b.x}`,
+          y2: `${seg.b.y}`,
+          stroke: isSelected ? "#1e90ff" : "black",
+          "stroke-width": isPreview ? "1" : (isSelected ? "3" : "2"),
+          "stroke-linecap": "round",
+          ...(isPreview ? { "stroke-dasharray": "6 4", opacity: "0.6" } : {}),
+        })
+      );
+    }
 
     getViewBox() {
         // Single source of truth for the drawable canvas area
@@ -149,7 +173,8 @@ export class SchematicSvg {
   center: Point,
   rotationDeg: number,
   spec: { bodyW: number; bodyH: number; lead: number },
-  isPreview: boolean
+  isPreview: boolean,
+  isSelected: boolean
 ) {
   const w = spec.bodyW;
   const h = spec.bodyH;
@@ -159,6 +184,27 @@ export class SchematicSvg {
     transform: `translate(${center.x} ${center.y}) rotate(${rotationDeg})`,
     opacity: isPreview ? "0.45" : "1",
   });
+
+  if (isSelected && !isPreview) {
+    const halfW = spec.lead + spec.bodyW / 2;
+    const halfH = Math.max(spec.bodyH / 2, 2);
+
+    const pad = 10; // in world units; tweak to taste
+
+    g.appendChild(
+      svgEl("rect", {
+        x: `${-halfW - pad}`,
+        y: `${-halfH - pad}`,
+        width: `${(halfW + pad) * 2}`,
+        height: `${(halfH + pad) * 2}`,
+        fill: "none",
+        stroke: "#1e90ff",
+        "stroke-width": "1",
+        "stroke-dasharray": "4 3",
+        "pointer-events": "none",
+      })
+    );
+  }
 
   // leads
   g.appendChild(
@@ -216,7 +262,7 @@ drawComponentSymbol(
   let g: SVGGElement;
 
   if (spec.kind === "rectResistor") {
-    g = this.buildRectResistorGroup(inst.pos, inst.rotation, spec, isPreview);
+    g = this.buildRectResistorGroup(inst.pos, inst.rotation, spec, isPreview, isSelected);
   } else {
     throw new Error(`Unsupported symbol kind: ${(spec as any).kind}`);
   }

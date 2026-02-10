@@ -21,3 +21,9 @@ export type ComponentInstance = {
   rotation: RotationDeg;
   params: Record<string, number>;
 };
+
+export type WireSegment = {
+  id: string;
+  a: Point; // grid-aligned world point
+  b: Point; // grid-aligned world point (axis-aligned)
+};
