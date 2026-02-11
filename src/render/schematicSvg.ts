@@ -47,7 +47,7 @@ export class SchematicSvg {
 
   // --- World + camera ---
   // "World" is fixed canvas bounds, independent of camera viewBox.
-  private readonly world: WorldRect = { x: 0, y: 0, width: 1200, height: 800 };
+  private readonly world: WorldRect = { x: 0, y: 0, width: 1920, height: 1080 };
 
   // "ViewBox" is the current visible camera rectangle.
   private viewBox: ViewBox = { x: 0, y: 0, width: 1200, height: 800 };
@@ -55,8 +55,8 @@ export class SchematicSvg {
   constructor(host: HTMLElement) {
     // Create the root <svg> element.
     this.svg = svgEl("svg", {
-      width: "100%",
-      height: "100%",
+      width: "1200",
+      height: "800",
       viewBox: `${this.viewBox.x} ${this.viewBox.y} ${this.viewBox.width} ${this.viewBox.height}`,
     });
 
@@ -67,6 +67,7 @@ export class SchematicSvg {
 
     // Create layers. Order matters.
     this.gridG = svgEl("g");
+    this.gridG.setAttribute("shape-rendering", "crispEdges");
     this.wiresG = svgEl("g");
     this.mainG = svgEl("g");
     this.debugG = svgEl("g");
@@ -244,29 +245,39 @@ export class SchematicSvg {
     const startY = Math.floor(minY / gridSize) * gridSize;
     const endY = Math.ceil(maxY / gridSize) * gridSize;
 
+    // verticals
     for (let x = startX; x <= endX; x += gridSize) {
       this.gridG.appendChild(
         svgEl("line", {
           x1: `${x}`,
-          y1: `${minY}`,
+          y1: `${startY}`,
           x2: `${x}`,
-          y2: `${maxY}`,
+          y2: `${endY}`,
           stroke: "#e8e8e8",
+          "stroke-width": "1",
+          "vector-effect": "non-scaling-stroke",
+          "shape-rendering": "crispEdges",
         })
       );
     }
 
+    // horizontals
     for (let y = startY; y <= endY; y += gridSize) {
       this.gridG.appendChild(
         svgEl("line", {
-          x1: `${minX}`,
+          x1: `${startX}`,
           y1: `${y}`,
-          x2: `${maxX}`,
+          x2: `${endX}`,
           y2: `${y}`,
           stroke: "#e8e8e8",
+          "stroke-width": "1",
+          "vector-effect": "non-scaling-stroke",
+          "shape-rendering": "crispEdges",
         })
       );
     }
+
+
   }
 
   // ===========================================================================

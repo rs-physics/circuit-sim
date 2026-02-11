@@ -6,29 +6,19 @@ export type Camera = {
 };
 
 type PanState = {
-  // Pointer position at pan start (screen/client space)
   startClient: { x: number; y: number };
-
-  // Camera state at pan start (world space)
   startCam: Camera;
-
-  // True once the pointer has moved enough to count as a "drag"
-  // (used to distinguish click vs drag)
   moved: boolean;
-
-  // Pointer capture id used during pan
   pointerId: number;
 };
 
 /**
- * Camera controller for an SVG viewBox.
+ * Screen-space camera:
+ * - Grid size should remain constant in pixels when the window resizes.
+ * - Zoom only changes when user uses the mouse wheel (zoomAt).
  *
- * Responsibilities:
- * - clamp camera to world bounds
- * - pan via pointer drag (screen space -> world space conversion)
- * - zoom around a world point (usually the mouse cursor)
- *
- * This controller does NOT render. It only updates internal camera state.
+ * We model zoom as "world units per screen pixel" (unitsPerPx).
+ * If unitsPerPx is constant, then 25 world units always renders as 25 pixels.
  */
 export function createCameraController(svg: SVGSVGElement, world: Camera) {
   // Current camera view (world space)
@@ -37,10 +27,11 @@ export function createCameraController(svg: SVGSVGElement, world: Camera) {
   // Active pan drag state, or null if not panning
   let panDrag: PanState | null = null;
 
-  /**
-   * Clamp a candidate camera so it stays inside the world bounds.
-   * Also prevents zooming out beyond world size.
-   */
+  // Zoom level: how many world units correspond to 1 screen pixel.
+  // unitsPerPx = 1 means 1 world unit == 1 pixel (25 grid units = 25 px).
+  let unitsPerPx = 1;
+
+  /** Clamp camera to world bounds. */
   const clamp = (c: Camera): Camera => {
     const w = Math.min(c.width, world.width);
     const h = Math.min(c.height, world.height);
@@ -53,23 +44,77 @@ export function createCameraController(svg: SVGSVGElement, world: Camera) {
     };
   };
 
+  /** Current SVG pixel size. */
+  const getSvgPxSize = () => {
+    const rect = svg.getBoundingClientRect();
+    return { w: Math.max(1, rect.width), h: Math.max(1, rect.height) };
+  };
+
+  /**
+   * Recompute camera width/height from current SVG pixel size and current unitsPerPx,
+   * keeping the camera centered on the same world point.
+   *
+   * This is what prevents resize from looking like zoom.
+   */
+  const applyUnitsPerPx = () => {
+    const { w: pxW, h: pxH } = getSvgPxSize();
+
+    const newW = pxW * unitsPerPx;
+    const newH = pxH * unitsPerPx;
+
+    const cx = camera.x + camera.width / 2;
+    const cy = camera.y + camera.height / 2;
+
+    camera = clamp({
+      x: cx - newW / 2,
+      y: cy - newH / 2,
+      width: newW,
+      height: newH,
+    });
+  };
+
+  /**
+   * Update unitsPerPx from the current camera + current SVG pixel size.
+   * Call this after zoom changes (because zoom changes camera width/height).
+   */
+  const updateUnitsPerPxFromCamera = () => {
+    const { w: pxW } = getSvgPxSize();
+    // width is enough because your viewBox uses the same scale in both axes
+    unitsPerPx = camera.width / pxW;
+  };
+
+  // Initialize camera dimensions based on current SVG pixels.
+  // (Keeps 1 world unit == 1 px at startup, unless you change unitsPerPx.)
+  applyUnitsPerPx();
+
   return {
-    /** Read-only snapshot of current camera state */
+    /** Camera snapshot */
     getCamera: (): Camera => camera,
 
-    /** True while we have an active pan drag */
+    /** True while panning */
     isPanning: (): boolean => panDrag !== null,
 
-    /**
-     * True if the current pan drag has exceeded the movement threshold.
-     * Used so a "click" doesn't count as a "drag".
-     */
+    /** True once pan exceeds small threshold */
     panMoved: (): boolean => !!panDrag?.moved,
 
+    setCamera(next: Camera) {
+      camera = clamp(next);
+      // If external code sets camera, keep zoom tracking consistent.
+      updateUnitsPerPxFromCamera();
+    },
+
     /**
-     * Begin a pan drag. Uses pointer capture so we still receive move/up
-     * events even if the pointer leaves the SVG bounds.
+     * Call this whenever the SVG pixel size might have changed.
+     * Easiest: call on window resize, ideally inside requestAnimationFrame.
+     *
+     * IMPORTANT:
+     * - We do NOT reset camera to 100%.
+     * - We keep unitsPerPx constant and recompute width/height from pixel size.
      */
+    handleResize() {
+      applyUnitsPerPx();
+    },
+
     startPan(e: PointerEvent) {
       panDrag = {
         startClient: { x: e.clientX, y: e.clientY },
@@ -77,82 +122,72 @@ export function createCameraController(svg: SVGSVGElement, world: Camera) {
         moved: false,
         pointerId: e.pointerId,
       };
-
       svg.setPointerCapture(e.pointerId);
     },
 
-    /**
-     * Update camera position during a pan drag.
-     * Converts client pixel deltas into world-space deltas based on viewBox size.
-     */
     updatePan(e: PointerEvent) {
       if (!panDrag) return;
 
       const dx = e.clientX - panDrag.startClient.x;
       const dy = e.clientY - panDrag.startClient.y;
 
-      // Small deadzone so a click doesn't accidentally become a drag
-      if (Math.abs(dx) + Math.abs(dy) > 3) {
-        panDrag.moved = true;
-      }
-
-      // If we haven't moved enough yet, do nothing
+      if (Math.abs(dx) + Math.abs(dy) > 3) panDrag.moved = true;
       if (!panDrag.moved) return;
 
-      const rect = svg.getBoundingClientRect();
-
-      // How many world units correspond to one screen pixel?
-      const worldPerPxX = panDrag.startCam.width / rect.width;
-      const worldPerPxY = panDrag.startCam.height / rect.height;
-
-      // Dragging right should move camera left (hence the minus)
+      // Convert pixel drag into world drag using current unitsPerPx.
       camera = clamp({
-        x: panDrag.startCam.x - dx * worldPerPxX,
-        y: panDrag.startCam.y - dy * worldPerPxY,
+        x: panDrag.startCam.x - dx * unitsPerPx,
+        y: panDrag.startCam.y - dy * unitsPerPx,
         width: panDrag.startCam.width,
         height: panDrag.startCam.height,
       });
     },
 
     /**
-     * Zoom around a given world point (usually the mouse cursor).
-     * Keeps the cursor "anchored" by preserving its relative position in the viewBox.
+     * Zoom at a world point.
+     * factor < 1 zooms in, factor > 1 zooms out.
      */
     zoomAt(worldPoint: { x: number; y: number }, factor: number) {
-      const vb = camera;
+      const prev = camera;
 
       // Cursor position as fraction within current viewBox
-      const rx = (worldPoint.x - vb.x) / vb.width;
-      const ry = (worldPoint.y - vb.y) / vb.height;
+      const rx = (worldPoint.x - prev.x) / prev.width;
+      const ry = (worldPoint.y - prev.y) / prev.height;
 
-      const newW = vb.width * factor;
-      const newH = vb.height * factor;
+      const desiredW = prev.width * factor;
+      const desiredH = prev.height * factor;
 
-      // Choose new origin so worldPoint stays under the cursor
-      const newX = worldPoint.x - rx * newW;
-      const newY = worldPoint.y - ry * newH;
+      const desiredX = worldPoint.x - rx * desiredW;
+      const desiredY = worldPoint.y - ry * desiredH;
 
-      camera = clamp({
-        x: newX,
-        y: newY,
-        width: newW,
-        height: newH,
+      const next = clamp({
+        x: desiredX,
+        y: desiredY,
+        width: desiredW,
+        height: desiredH,
       });
+
+      // If clamping means “no actual change”, don’t update anything else.
+      const unchanged =
+        next.x === prev.x &&
+        next.y === prev.y &&
+        next.width === prev.width &&
+        next.height === prev.height;
+
+      if (unchanged) return;
+
+      camera = next;
+
+      // IMPORTANT:
+      // Record the new zoom level so future resizes preserve it.
+      updateUnitsPerPxFromCamera();
     },
 
-    /**
-     * End the pan drag and release pointer capture.
-     * Safe to call even if we aren't panning.
-     */
     endPan() {
       if (!panDrag) return;
-
       try {
         svg.releasePointerCapture(panDrag.pointerId);
-      } catch {
-        // releasePointerCapture can throw if capture isn't held; safe to ignore
-      }
-
+      } catch {}
       panDrag = null;
     },
   };

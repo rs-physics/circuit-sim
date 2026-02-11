@@ -58,9 +58,13 @@ export class App {
     // 3) Temporary UI scaffold (will be replaced later)
     // -----------------------------
     const ui = createTempToolbar(host, availableTypes);
-    ui.selComponentType.value = activeTypeId;
-    ui.setWireLabel(false);
-    ui.setPlaceLabel(false);
+
+    // Component library grid (no <select> anymore)
+    ui.setActiveComponentTypeId(activeTypeId);
+    ui.onComponentSelect((typeId) => {
+      activeTypeId = typeId;
+      doRender();
+    });
 
     // -----------------------------
     // 4) Core editor state + view/camera
@@ -72,8 +76,14 @@ export class App {
 
     // Hard-coded world bounds for V1 (fine for now).
     // Later: compute from content bounds or make this infinite.
-    const WORLD_BOUNDS = { x: 0, y: 0, width: 1200, height: 800 };
+    const WORLD_BOUNDS = { x: 0, y: 0, width: 1920, height: 1080 };
     const cam = createCameraController(view.svg, WORLD_BOUNDS);
+    // If screen is resized pass this across to the handleResize function in camera.ts
+    window.addEventListener("resize", () => {
+      cam.handleResize();
+      doRender();
+    });
+    cam.setCamera({ x: 0, y: 0, width: 1200, height: 800 });
 
     // Prevent middle mouse click from opening browser auto-scroll UI.
     view.svg.addEventListener("auxclick", (e) => {
@@ -81,6 +91,13 @@ export class App {
     });
     view.svg.addEventListener("mousedown", (e) => {
       if ((e as MouseEvent).button === 1) e.preventDefault();
+    });
+
+    // after everything is appended + listeners are set up
+    requestAnimationFrame(() => {
+      // if you have cam.handleResize(), call it here too
+      cam.handleResize?.();
+      doRender();
     });
 
     // -----------------------------
@@ -104,21 +121,6 @@ export class App {
     // -----------------------------
     // 6) Small “actions” that mutate state (App-level commands)
     // -----------------------------
-
-    /**
-     * Keeps the “Place Component” button label synced with:
-     * - whether we’re in place mode
-     * - which component type is active
-     */
-    const updatePlaceButtonText = () => {
-      if (!isPlaceMode) {
-        ui.setPlaceLabel(false);
-        return;
-      }
-
-      const t = getComponentType(activeTypeId);
-      ui.setPlaceLabel(true, t.displayName);
-    };
 
     /**
      * Normalise wire geometry: merges collinear segments, splits overlaps, etc.
@@ -220,53 +222,57 @@ export class App {
      * - what a click does
      * - which state gets cleared
      */
-    const setPlaceMode = (enabled: boolean) => {
-      isPlaceMode = enabled;
+const setPlaceMode = (enabled: boolean) => {
+  isPlaceMode = enabled;
 
-      if (enabled) {
-        // Place mode and wire mode are mutually exclusive
-        isWireMode = false;
-        ui.setWireLabel(false);
+  if (enabled) {
+    // mutually exclusive
+    isWireMode = false;
 
-        // Cancel any in-progress wire chain
-        wireStart = null;
-        wirePreviewEnd = null;
+    move?.clearSelection();
 
-        // Leaving selection state helps avoid "placing while something selected"
-        move?.clearSelection();
+    wireStart = null;
+    wirePreviewEnd = null;
 
-        view.svg.style.cursor = "default";
-      }
+    view.svg.style.cursor = "default";
 
-      updatePlaceButtonText();
-      doRender();
-    };
+    // highlight Place tool tile
+    ui.setActiveTool("place");
+  } else {
+    // when leaving place mode, go back to Select tool tile
+    ui.setActiveTool("select");
+  }
 
-    const setWireMode = (enabled: boolean) => {
-      isWireMode = enabled;
+  doRender();
+};
 
-      if (enabled) {
-        // Wire mode and place mode are mutually exclusive
-        isPlaceMode = false;
 
-        move?.clearSelection();
+  const setWireMode = (enabled: boolean) => {
+    isWireMode = enabled;
 
-        wireStart = null;
-        wirePreviewEnd = null;
+    if (enabled) {
+      // mutually exclusive
+      isPlaceMode = false;
 
-        view.svg.style.cursor = "crosshair";
-        ui.setWireLabel(true);
-        updatePlaceButtonText();
-      } else {
-        wireStart = null;
-        wirePreviewEnd = null;
+      move?.clearSelection();
 
-        view.svg.style.cursor = "default";
-        ui.setWireLabel(false);
-      }
+      wireStart = null;
+      wirePreviewEnd = null;
 
-      doRender();
-    };
+      view.svg.style.cursor = "crosshair";
+
+      ui.setActiveTool("wire"); 
+    } else {
+      wireStart = null;
+      wirePreviewEnd = null;
+
+      view.svg.style.cursor = "default";
+      ui.setActiveTool("select"); 
+    }
+
+    doRender();
+  };
+
 
     // -----------------------------
     // 7) Render function (single source of truth for drawing)
@@ -318,15 +324,16 @@ export class App {
     // -----------------------------
     ui.btnWire.addEventListener("click", () => setWireMode(!isWireMode));
 
-    ui.selComponentType.addEventListener("change", () => {
-      activeTypeId = ui.selComponentType.value;
-      updatePlaceButtonText();
-      doRender();
-    });
-
     ui.btnPlaceComponent.addEventListener("click", () => {
       setPlaceMode(!isPlaceMode);
     });
+
+    ui.btnSelect.addEventListener("click", () => {
+      setWireMode(false);
+      setPlaceMode(false);
+      ui.setActiveTool("select");
+    });
+
 
     // -----------------------------
     // 10) Pointer + keyboard input wiring
@@ -413,7 +420,6 @@ export class App {
     // -----------------------------
     // 11) Start
     // -----------------------------
-    updatePlaceButtonText();
     doRender();
     console.log("Component system: V1 editor booted.");
   }

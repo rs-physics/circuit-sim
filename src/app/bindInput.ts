@@ -19,6 +19,7 @@ export type BindInputDeps = {
   // Camera controls (wheel zoom + panning)
   cam: {
     zoomAt: (worldPoint: Point, factor: number) => void;
+    handleResize: () => void;
     isPanning: () => boolean;
     startPan: (e: PointerEvent) => void;
     updatePan: (e: PointerEvent) => void;
@@ -119,7 +120,11 @@ export function bindInput(deps: BindInputDeps) {
       const zoomFactor = e.deltaY < 0 ? 0.9 : 1.1;
 
       deps.cam.zoomAt(mouse, zoomFactor);
-      deps.doRender();
+      // HACK: force the same “recalc/snap” that a resize triggers
+      requestAnimationFrame(() => {
+        deps.cam.handleResize();
+        deps.doRender();
+      });
     },
     { passive: false }
   );
