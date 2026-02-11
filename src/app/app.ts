@@ -59,12 +59,26 @@ export class App {
     // -----------------------------
     const ui = createTempToolbar(host, availableTypes);
 
-    // Component library grid (no <select> anymore)
-    ui.setActiveComponentTypeId(activeTypeId);
-    ui.onComponentSelect((typeId) => {
-      activeTypeId = typeId;
+    // New single-mode wiring
+    ui.onModeChange((mode) => {
+      // If we're in a component mode, sync the active type
+      if (mode !== "select" && mode !== "wire") {
+        activeTypeId = mode;
+      }
+
+      applyMode(mode); // this is the function we just created
+    });
+
+
+    // Single-mode toolbar now drives selection.
+    // Keep App's activeTypeId in sync when a component mode is chosen.
+    ui.onModeChange((mode) => {
+      if (mode !== "select" && mode !== "wire") {
+        activeTypeId = mode; // mode is the component typeId
+      }
       doRender();
     });
+
 
     // -----------------------------
     // 4) Core editor state + view/camera
@@ -103,8 +117,6 @@ export class App {
     // -----------------------------
     // 5) Tool / interaction state (ephemeral UI state)
     // -----------------------------
-    let isPlaceMode = false;
-    let isWireMode = false;
     let isMouseOverCanvas = false;
 
     // Place-mode preview
@@ -222,56 +234,27 @@ export class App {
      * - what a click does
      * - which state gets cleared
      */
-const setPlaceMode = (enabled: boolean) => {
-  isPlaceMode = enabled;
-
-  if (enabled) {
-    // mutually exclusive
-    isWireMode = false;
-
-    move?.clearSelection();
-
-    wireStart = null;
-    wirePreviewEnd = null;
-
-    view.svg.style.cursor = "default";
-
-    // highlight Place tool tile
-    ui.setActiveTool("place");
-  } else {
-    // when leaving place mode, go back to Select tool tile
-    ui.setActiveTool("select");
-  }
-
-  doRender();
-};
-
-
-  const setWireMode = (enabled: boolean) => {
-    isWireMode = enabled;
-
-    if (enabled) {
-      // mutually exclusive
-      isPlaceMode = false;
-
+    const applyMode = (mode: "select" | "wire" | string) => {
+      // clear transient state when switching modes
       move?.clearSelection();
-
       wireStart = null;
       wirePreviewEnd = null;
 
-      view.svg.style.cursor = "crosshair";
+      // cursor + behaviour cues
+      if (mode === "wire") {
+        view.svg.style.cursor = "crosshair";
+      } else if (mode === "select") {
+        view.svg.style.cursor = "default";
+      } else {
+        // placing a component
+        view.svg.style.cursor = "copy";
+      }
 
-      ui.setActiveTool("wire"); 
-    } else {
-      wireStart = null;
-      wirePreviewEnd = null;
+      // no more ui.setActiveTool / tool highlighting separately
+      // (tempToolbar now highlights based on ui.setMode)
+      doRender();
+    };
 
-      view.svg.style.cursor = "default";
-      ui.setActiveTool("select"); 
-    }
-
-    doRender();
-  };
 
 
     // -----------------------------
@@ -290,12 +273,13 @@ const setPlaceMode = (enabled: boolean) => {
 
         showDebug,
 
-        isWireMode,
+        // single mode
+        mode: ui.getMode(),
+
         wireStart,
         wirePreviewEnd,
         manhattanSegments,
 
-        isPlaceMode,
         isMouseOverCanvas,
         activeTypeId,
         previewPos,
@@ -305,6 +289,7 @@ const setPlaceMode = (enabled: boolean) => {
         dragWirePreview: move ? move.dragWirePreview() : [],
       });
     };
+
 
     // -----------------------------
     // 8) Construct reroute/drag system (owns drag+reroute state machine)
@@ -322,17 +307,7 @@ const setPlaceMode = (enabled: boolean) => {
     // -----------------------------
     // 9) UI event wiring
     // -----------------------------
-    ui.btnWire.addEventListener("click", () => setWireMode(!isWireMode));
 
-    ui.btnPlaceComponent.addEventListener("click", () => {
-      setPlaceMode(!isPlaceMode);
-    });
-
-    ui.btnSelect.addEventListener("click", () => {
-      setWireMode(false);
-      setPlaceMode(false);
-      ui.setActiveTool("select");
-    });
 
 
     // -----------------------------
@@ -344,11 +319,9 @@ const setPlaceMode = (enabled: boolean) => {
       cam,
       clientPointToSvgPoint,
 
-      // mode controls
-      isPlaceMode: () => isPlaceMode,
-      setPlaceMode,
-      isWireMode: () => isWireMode,
-      setWireMode,
+      // mode controls (single enum)
+      getMode: ui.getMode,
+      setMode: ui.setMode,
 
       // wire chain state (wire mode)
       wireStart: () => wireStart,

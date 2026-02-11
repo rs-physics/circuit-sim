@@ -6,16 +6,6 @@ import type { SchematicSvg } from "../render/schematicSvg";
 import { getComponentType } from "../editor/registry";
 import type { Camera } from "../editor/camera";
 
-/**
- * renderAll is the single draw pipeline for the editor.
- * It is intentionally "dumb":
- * - it does not mutate state
- * - it does not handle input
- * - it just renders the current state + tool previews
- *
- * This keeps the App easy to reason about: state changes happen elsewhere,
- * then renderAll draws whatever the current truth is.
- */
 export type RenderAllDeps = {
   view: SchematicSvg;
   grid: Grid;
@@ -27,14 +17,15 @@ export type RenderAllDeps = {
   // debug overlay
   showDebug: boolean;
 
+  // mode (single source of truth)
+  mode: "select" | "wire" | string;
+
   // wire tool preview
-  isWireMode: boolean;
   wireStart: Point | null;
   wirePreviewEnd: Point | null;
   manhattanSegments: (a: Point, b: Point) => { a: Point; b: Point }[];
 
   // component placement preview
-  isPlaceMode: boolean;
   isMouseOverCanvas: boolean;
   activeTypeId: string;
   previewPos: Point;
@@ -53,12 +44,11 @@ export function renderAll(deps: RenderAllDeps) {
 
     showDebug,
 
-    isWireMode,
+    mode,
     wireStart,
     wirePreviewEnd,
     manhattanSegments,
 
-    isPlaceMode,
     isMouseOverCanvas,
     activeTypeId,
     previewPos,
@@ -67,6 +57,9 @@ export function renderAll(deps: RenderAllDeps) {
     dragWirePreview,
   } = deps;
 
+  const wireMode = mode === "wire";
+  const placeMode = mode !== "select" && mode !== "wire";
+
   // ---------------------------------------------------------------------------
   // 1) Frame setup: viewbox + clear
   // ---------------------------------------------------------------------------
@@ -74,12 +67,10 @@ export function renderAll(deps: RenderAllDeps) {
   view.clear();
   view.clearDebug();
 
-  // In V1 we redraw the grid every frame. Fine for now.
   view.drawGrid(grid.size);
 
-  // Convenience flags used in multiple places below
   const hasSelection = state.selection !== null;
-  const isPlacementPreviewVisible = isPlaceMode && isMouseOverCanvas;
+  const isPlacementPreviewVisible = placeMode && isMouseOverCanvas;
 
   // ---------------------------------------------------------------------------
   // 2) Wires (existing)
@@ -94,9 +85,9 @@ export function renderAll(deps: RenderAllDeps) {
   }
 
   // ---------------------------------------------------------------------------
-  // 3) Wire tool preview (manhattan segments from wireStart -> wirePreviewEnd)
+  // 3) Wire tool preview
   // ---------------------------------------------------------------------------
-  if (isWireMode && wireStart && wirePreviewEnd) {
+  if (wireMode && wireStart && wirePreviewEnd) {
     const segs = manhattanSegments(wireStart, wirePreviewEnd);
     for (const s of segs) view.drawWireSegment(s, { preview: true });
   }
@@ -116,20 +107,20 @@ export function renderAll(deps: RenderAllDeps) {
   }
 
   // ---------------------------------------------------------------------------
-  // 5) Reroute preview wires (drawn while dragging a component)
+  // 5) Reroute preview wires
   // ---------------------------------------------------------------------------
   for (const s of dragWirePreview) {
     view.drawWireSegment(s, { preview: true });
   }
 
   // ---------------------------------------------------------------------------
-  // 6) Placement preview instance (used for both preview symbol + preview ports)
+  // 6) Placement preview instance
   // ---------------------------------------------------------------------------
   let previewInst: ComponentInstance | null = null;
   if (isPlacementPreviewVisible) {
     const t = getComponentType(activeTypeId);
     previewInst = {
-      id: "__preview__", // not a real persisted component
+      id: "__preview__",
       typeId: activeTypeId,
       pos: previewPos,
       rotation: previewRotation,
@@ -141,7 +132,6 @@ export function renderAll(deps: RenderAllDeps) {
   // 7) Debug overlay (ports)
   // ---------------------------------------------------------------------------
   if (showDebug) {
-    // Existing component ports
     for (const inst of state.components) {
       const t = getComponentType(inst.typeId);
       for (const port of t.portWorldPositions(inst)) {
@@ -149,7 +139,6 @@ export function renderAll(deps: RenderAllDeps) {
       }
     }
 
-    // Placement preview ports (only when preview is visible)
     if (previewInst) {
       const t = getComponentType(previewInst.typeId);
       for (const port of t.portWorldPositions(previewInst)) {
@@ -165,7 +154,6 @@ export function renderAll(deps: RenderAllDeps) {
     const t = getComponentType(previewInst.typeId);
     t.render(view, previewInst, { preview: true });
   } else {
-    // No preview needed: make sure any previous ghost is hidden
     view.hidePreview();
   }
 }

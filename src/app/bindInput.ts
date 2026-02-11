@@ -4,11 +4,17 @@ import type { EditorState } from "../editor/state";
 import type { SchematicSvg } from "../render/schematicSvg";
 
 /**
- * Everything bindInput needs is injected so the module stays:
- * - dumb about overall architecture
- * - easy to refactor without reaching into globals
- * - reusable if you later swap renderers / UIs
+ * Single-mode model:
+ * - "select" => selection / drag
+ * - "wire"   => wire drawing
+ * - otherwise (string) => placing that component typeId
  */
+export type UiMode = "select" | "wire" | string;
+
+const isWireMode = (m: UiMode) => m === "wire";
+const isSelectMode = (m: UiMode) => m === "select";
+const isPlaceMode = (m: UiMode) => !isSelectMode(m) && !isWireMode(m);
+
 export type BindInputDeps = {
   view: SchematicSvg;
   doRender: () => void;
@@ -27,12 +33,9 @@ export type BindInputDeps = {
     panMoved: () => boolean;
   };
 
-  // Modes (owned by App)
-  isPlaceMode: () => boolean;
-  setPlaceMode: (v: boolean) => void;
-
-  isWireMode: () => boolean;
-  setWireMode: (v: boolean) => void;
+  // Mode (owned by App)
+  getMode: () => UiMode;
+  setMode: (m: UiMode) => void;
 
   // Wire-chain state (owned by App)
   wireStart: () => Point | null;
@@ -101,7 +104,6 @@ export function bindInput(deps: BindInputDeps) {
 
   /**
    * Convenience helper: convert a mouse/pointer event into SVG world coords.
-   * (This is the single most repeated piece of code in input handlers.)
    */
   const toSvgPoint = (e: { clientX: number; clientY: number }): Point => {
     return deps.clientPointToSvgPoint(view.svg, { x: e.clientX, y: e.clientY });
@@ -113,14 +115,13 @@ export function bindInput(deps: BindInputDeps) {
   view.svg.addEventListener(
     "wheel",
     (e: WheelEvent) => {
-      // Prevent page scrolling while hovering the SVG
       e.preventDefault();
 
       const mouse = toSvgPoint(e);
       const zoomFactor = e.deltaY < 0 ? 0.9 : 1.1;
 
       deps.cam.zoomAt(mouse, zoomFactor);
-      // HACK: force the same “recalc/snap” that a resize triggers
+
       requestAnimationFrame(() => {
         deps.cam.handleResize();
         deps.doRender();
@@ -135,17 +136,19 @@ export function bindInput(deps: BindInputDeps) {
   view.svg.addEventListener("contextmenu", (e: MouseEvent) => {
     e.preventDefault();
 
-    // Place mode: right-click exits place mode
-    if (deps.isPlaceMode()) {
-      deps.setPlaceMode(false);
+    const mode = deps.getMode();
+
+    // Place mode: right-click exits to select
+    if (isPlaceMode(mode)) {
+      deps.setMode("select");
       deps.doRender();
       return;
     }
 
     // Wire mode:
     // - if a chain is in progress: right-click ends the chain
-    // - otherwise: right-click exits wire mode
-    if (deps.isWireMode()) {
+    // - otherwise: right-click exits wire mode (back to select)
+    if (isWireMode(mode)) {
       if (deps.wireStart()) {
         deps.setWireStart(null);
         deps.setWirePreviewEnd(null);
@@ -153,18 +156,18 @@ export function bindInput(deps: BindInputDeps) {
         return;
       }
 
-      deps.setWireMode(false);
+      deps.setMode("select");
       deps.doRender();
       return;
     }
 
-    // Normal mode: right-click deselects anything selected
+    // Select mode: right-click deselects anything selected
     deps.clearSelection();
     deps.doRender();
   });
 
   // ---------------------------------------------------------------------------
-  // Mouse leave: clear hover previews (place mode / wire mode)
+  // Mouse leave: clear hover previews
   // ---------------------------------------------------------------------------
   view.svg.addEventListener("mouseleave", () => {
     deps.setIsMouseOverCanvas(false);
@@ -173,10 +176,9 @@ export function bindInput(deps: BindInputDeps) {
   });
 
   // ---------------------------------------------------------------------------
-  // Mouse move: update place-mode preview position / wire preview end
+  // Mouse move: update place preview position / wire preview end
   // ---------------------------------------------------------------------------
   view.svg.addEventListener("mousemove", (e: MouseEvent) => {
-    // If we’re panning, pointermove handles the updates. Don’t fight it.
     if (deps.cam.isPanning()) return;
 
     const svgPoint = toSvgPoint(e);
@@ -184,22 +186,22 @@ export function bindInput(deps: BindInputDeps) {
 
     deps.setIsMouseOverCanvas(inside);
 
-    // If the cursor leaves the world bounds, we only need to re-render
-    // if a preview is currently visible.
+    const mode = deps.getMode();
+
     if (!inside) {
-      if (deps.isPlaceMode() || deps.isWireMode()) deps.doRender();
+      if (isPlaceMode(mode) || isWireMode(mode)) deps.doRender();
       return;
     }
 
     const snapped = deps.grid.snap(svgPoint);
 
-    if (deps.isPlaceMode()) {
+    if (isPlaceMode(mode)) {
       deps.setPreviewPos(snapped);
       deps.doRender();
       return;
     }
 
-    if (deps.isWireMode()) {
+    if (isWireMode(mode)) {
       deps.setWirePreviewEnd(snapped);
       deps.doRender();
       return;
@@ -208,13 +210,8 @@ export function bindInput(deps: BindInputDeps) {
 
   // ---------------------------------------------------------------------------
   // Pointer down: main interaction entry point
-  // - middle: pan
-  // - left: wire / select+drag / place
   // ---------------------------------------------------------------------------
   view.svg.addEventListener("pointerdown", (e: PointerEvent) => {
-    // Uncomment if you ever need to debug state again:
-    // console.log("wire?", deps.isWireMode(), "place?", deps.isPlaceMode());
-
     // Middle mouse: pan always
     if (e.button === 1) {
       deps.cam.startPan(e);
@@ -226,11 +223,12 @@ export function bindInput(deps: BindInputDeps) {
     if (e.button !== 0) return;
 
     const svgPoint = toSvgPoint(e);
+    const mode = deps.getMode();
 
     // -------------------------
     // WIRE MODE
     // -------------------------
-    if (deps.isWireMode()) {
+    if (isWireMode(mode)) {
       if (!view.isInsideCanvas(svgPoint)) return;
 
       const p = deps.grid.snap(svgPoint);
@@ -256,8 +254,7 @@ export function bindInput(deps: BindInputDeps) {
       }
       deps.normalizeWires();
 
-      // If we clicked a port or existing wire, end the chain.
-      // Otherwise, continue the chain from the new point.
+      // End chain if clicked a port or existing wire; else continue
       if (onPort || onWire) {
         deps.setWireStart(null);
         deps.setWirePreviewEnd(null);
@@ -273,9 +270,8 @@ export function bindInput(deps: BindInputDeps) {
 
     // -------------------------
     // SELECTION + DRAG MODE
-    // (i.e., not in place mode)
     // -------------------------
-    if (!deps.isPlaceMode()) {
+    if (isSelectMode(mode)) {
       if (view.isInsideCanvas(svgPoint)) {
         const hit = deps.hitTest(deps.state, svgPoint);
 
@@ -286,8 +282,7 @@ export function bindInput(deps: BindInputDeps) {
           return;
         }
 
-        // If we had a reroute preview active for some component,
-        // and we click away from that component, commit the preview.
+        // Commit reroute preview if clicking away from owner
         const rerouteOwnerId = deps.getRerouteOwnerId();
         if (rerouteOwnerId && (hit.kind !== "component" || hit.id !== rerouteOwnerId)) {
           deps.commitReroutePreview();
@@ -295,20 +290,14 @@ export function bindInput(deps: BindInputDeps) {
           deps.setMoveDragNull();
         }
 
-        // Select the hit thing
         deps.state.selection = hit;
 
-        // Components can be dragged. Wires are selectable but not draggable (V1).
         if (hit.kind === "component") {
-          // Ensure reroute session is initialised for this component
           if (deps.getRerouteOwnerId() !== hit.id) {
             deps.beginRerouteForSelectedComponent(hit.id);
           }
 
           deps.startDrag(hit.id, svgPoint);
-
-          // Pointer capture ensures we still receive pointermove/up even
-          // if the cursor leaves the SVG during drag.
           view.svg.setPointerCapture(e.pointerId);
 
           deps.doRender();
@@ -329,15 +318,16 @@ export function bindInput(deps: BindInputDeps) {
     }
 
     // -------------------------
-    // PLACEMENT MODE
+    // PLACEMENT MODE (mode is a component typeId)
     // -------------------------
     if (!deps.isMouseOverCanvas()) return;
 
-    const t = deps.getComponentType(deps.activeTypeId());
+    const typeId = deps.activeTypeId();
+    const t = deps.getComponentType(typeId);
 
     const inst: ComponentInstance = {
       id: deps.newId(),
-      typeId: deps.activeTypeId(),
+      typeId,
       pos: deps.previewPos(),
       rotation: deps.previewRotation(),
       params: t.defaultParams(),
@@ -345,9 +335,7 @@ export function bindInput(deps: BindInputDeps) {
 
     deps.state.components.push(inst);
 
-    // Placing a component ends any existing selection / reroute session
     deps.clearSelection();
-
     deps.doRender();
     e.preventDefault();
   });
@@ -356,18 +344,16 @@ export function bindInput(deps: BindInputDeps) {
   // Pointer move: pan or component dragging
   // ---------------------------------------------------------------------------
   view.svg.addEventListener("pointermove", (e: PointerEvent) => {
-    // Panning takes priority; it should feel responsive even if other modes exist
     if (deps.cam.isPanning()) {
       deps.cam.updatePan(e);
-      deps.doRender(); // ✅ needed for real-time pan updates
+      deps.doRender();
       e.preventDefault();
       return;
     }
 
     // Don’t drag components while placing components
-    if (deps.isPlaceMode()) return;
+    if (isPlaceMode(deps.getMode())) return;
 
-    // If we are not currently dragging a component, ignore
     if (!deps.hasMoveDrag()) return;
 
     const svgPoint = toSvgPoint(e);
@@ -379,12 +365,10 @@ export function bindInput(deps: BindInputDeps) {
   // Pointer up: finish pan or finish component drag
   // ---------------------------------------------------------------------------
   view.svg.addEventListener("pointerup", (e: PointerEvent) => {
-    // End panning
     if (deps.cam.isPanning()) {
       const wasMoved = deps.cam.panMoved();
       deps.cam.endPan();
 
-      // If the user clicked but didn't move, treat it like an empty-space click
       if (!wasMoved) {
         deps.clearSelection();
       }
@@ -394,7 +378,6 @@ export function bindInput(deps: BindInputDeps) {
       return;
     }
 
-    // End component drag
     if (!deps.moveDragActive()) return;
 
     deps.clearMoveDrag();
@@ -402,7 +385,7 @@ export function bindInput(deps: BindInputDeps) {
     try {
       view.svg.releasePointerCapture(e.pointerId);
     } catch {
-      // releasePointerCapture can throw if capture wasn’t held; safe to ignore
+      // ignore
     }
 
     deps.doRender();
@@ -414,26 +397,31 @@ export function bindInput(deps: BindInputDeps) {
   // ---------------------------------------------------------------------------
   const onKeyDown = (e: KeyboardEvent) => {
     const k = e.key.toLowerCase();
+    const mode = deps.getMode();
 
-    // Escape: cancel wire chain or exit wire mode
+    // Escape: cancel wire chain or exit wire mode (back to select)
     if (k === "escape") {
-      if (deps.isWireMode()) {
+      if (isWireMode(mode)) {
         deps.setWireStart(null);
         deps.setWirePreviewEnd(null);
-        deps.setWireMode(false);
+        deps.setMode("select");
+        return;
+      }
+      if (isPlaceMode(mode)) {
+        deps.setMode("select");
         return;
       }
     }
 
     // W: toggle wire mode
     if (k === "w") {
-      deps.setWireMode(!deps.isWireMode());
+      deps.setMode(isWireMode(mode) ? "select" : "wire");
       return;
     }
 
     // Delete/Backspace: delete selected (except during placement)
     if (k === "delete" || k === "backspace") {
-      if (deps.isPlaceMode()) return;
+      if (isPlaceMode(mode)) return;
       deps.deleteSelection();
       e.preventDefault();
       return;
@@ -448,7 +436,7 @@ export function bindInput(deps: BindInputDeps) {
 
     // R: rotate (preview in place mode; selected component otherwise)
     if (k === "r") {
-      if (deps.isPlaceMode()) {
+      if (isPlaceMode(mode)) {
         deps.setPreviewRotation(((deps.getPreviewRotation() + 90) % 360) as RotationDeg);
         deps.doRender();
       } else {
@@ -464,6 +452,5 @@ export function bindInput(deps: BindInputDeps) {
    * Note:
    * If you ever create/destroy App multiple times in the same page session,
    * consider returning an "unbind" function that removes the window keydown listener.
-   * For now (single App instance), this is fine.
    */
 }

@@ -25,45 +25,67 @@ const ICONS: Record<IconKind, string> = {
   `,
 
   place: `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M12 3v18M3 12h18"/>
-      <path d="M7 17h10"/>
+    <svg viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round">
+      <!-- outer circle -->
+      <circle cx="12" cy="12" r="8"/>
+      <!-- plus -->
+      <path d="M12 8v8"/>
+      <path d="M8 12h8"/>
     </svg>
   `,
+
 
   resistor: `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M2 12h4l2-3 4 6 4-6 2 3h4"/>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <!-- leads -->
+      <path d="M2 12h4"/>
+      <path d="M18 12h4"/>
+      <!-- rectangular body -->
+      <rect x="6" y="8" width="12" height="8"/>
     </svg>
   `,
 
+
   battery: `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M7 7v10"/>
-      <path d="M11 9v6"/>
-      <path d="M15 9v6"/>
-      <path d="M17 7v10"/>
-      <path d="M3 12h4M17 12h4"/>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <!-- leads -->
+      <path d="M2 12h6"/>
+      <path d="M16 12h6"/>
+      <!-- plates: long then short -->
+      <path d="M10 6v12"/>
+      <path d="M14 8v8"/>
     </svg>
   `,
 
   capacitor: `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M7 6v12"/>
-      <path d="M17 6v12"/>
-      <path d="M3 12h4M17 12h4"/>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <!-- leads -->
+      <path d="M2 12h7"/>
+      <path d="M15 12h7"/>
+      <!-- plates -->
+      <path d="M9 6v12"/>
+      <path d="M15 6v12"/>
     </svg>
   `,
 
   bulb: `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M9 18h6"/>
-      <path d="M10 22h4"/>
-      <path d="M12 2a7 7 0 0 0-4 12c.7.6 1 1.4 1 2h6c0-.6.3-1.4 1-2A7 7 0 0 0 12 2z"/>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <!-- leads -->
+      <path d="M2 12h5"/>
+      <path d="M17 12h5"/>
+      <!-- lamp circle -->
+      <circle cx="12" cy="12" r="5"/>
+      <!-- filament cross -->
+      <path d="M9.5 9.5l5 5"/>
+      <path d="M14.5 9.5l-5 5"/>
     </svg>
   `,
-};
-
+}
 export function getIconSvg(kind: IconKind): string {
   return ICONS[kind];
 }

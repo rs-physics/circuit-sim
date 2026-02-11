@@ -5,26 +5,32 @@ export type ToolbarComponentType = {
   displayName: string;
 };
 
-export type TempToolbar = {
-  canvasHost: HTMLDivElement;
-
-  // tool buttons (so App can keep using addEventListener)
-  btnWire: HTMLButtonElement;
-  btnPlaceComponent: HTMLButtonElement;
-  btnSelect: HTMLButtonElement;
-
-  // component selection API (replaces <select>)
-  getActiveComponentTypeId: () => string;
-  setActiveComponentTypeId: (typeId: string) => void;
-  onComponentSelect: (fn: (typeId: string) => void) => void;
-
-  setActiveTool: (tool: "select" | "wire" | "place") => void;
-};
+export type UiTool = "select" | "wire";
 
 type PaletteItem = {
   typeId: string;
   displayName: string;
   icon: IconKind;
+};
+
+// Keep palette typeIds as a union (from this file’s palette)
+export type UiComponentMode = PaletteItem["typeId"];
+export type UiMode = UiTool | UiComponentMode;
+
+export type TempToolbar = {
+  canvasHost: HTMLDivElement;
+
+  // tool buttons (so App can keep using addEventListener)
+  btnWire: HTMLButtonElement;
+  btnSelect: HTMLButtonElement;
+
+  // single source of truth
+  getMode: () => UiMode;
+  setMode: (mode: UiMode) => void;
+  onModeChange: (fn: (mode: UiMode) => void) => void;
+
+  // convenience (optional, but keeps App changes small)
+  getActiveComponentTypeId: () => string | null;
 };
 
 export function createTempToolbar(
@@ -36,6 +42,42 @@ export function createTempToolbar(
 
   const toolbar = document.createElement("div");
   toolbar.className = "ui-toolbar ui-panel";
+
+  // -----------------------------
+  // Components palette definition
+  // -----------------------------
+  const PALETTE: PaletteItem[] = [
+    { typeId: "resistor", displayName: "Resistor", icon: "resistor" },
+    { typeId: "battery", displayName: "Battery", icon: "battery" },
+    { typeId: "capacitor", displayName: "Capacitor", icon: "capacitor" },
+    { typeId: "bulb", displayName: "Bulb", icon: "bulb" },
+  ];
+
+  const availableTypeIds = new Set(availableTypes.map((t) => t.typeId));
+
+  // -----------------------------
+  // Mode state (single enum)
+  // -----------------------------
+  // default: first implemented palette item, else resistor
+
+  let mode: UiMode = "select";
+  let onMode: ((m: UiMode) => void) | null = null;
+
+  const getMode = () => mode;
+
+  const setMode = (m: UiMode) => {
+    mode = m;
+    syncUiToMode();
+    onMode?.(mode);
+  };
+
+  const onModeChange = (fn: (m: UiMode) => void) => {
+    onMode = fn;
+  };
+
+  const getActiveComponentTypeId = (): string | null => {
+    return mode !== "select" && mode !== "wire" ? mode : null;
+  };
 
   // -----------------------------
   // Tools group
@@ -52,7 +94,7 @@ export function createTempToolbar(
   toolGrid.className = "ui-toolGrid";
   toolsGroup.appendChild(toolGrid);
 
-  const makeToolTile = (label: string, tool: "select" | "wire" | "place", iconKind: IconKind) => {
+  const makeToolTile = (label: string, tool: UiTool, iconKind: IconKind) => {
     const wrap = document.createElement("div");
     wrap.className = "ui-toolWrap";
 
@@ -75,26 +117,21 @@ export function createTempToolbar(
 
   const selectTool = makeToolTile("Select", "select", "select");
   const wireTool = makeToolTile("Wire", "wire", "wire");
-  const placeTool = makeToolTile("Place", "place", "place");
 
   toolGrid.appendChild(selectTool.wrap);
   toolGrid.appendChild(wireTool.wrap);
-  toolGrid.appendChild(placeTool.wrap);
 
   const btnSelect = selectTool.btn;
   const btnWire = wireTool.btn;
-  const btnPlaceComponent = placeTool.btn;
 
-  const toolButtons: Record<"select" | "wire" | "place", HTMLButtonElement> = {
+  const toolButtons: Record<UiTool, HTMLButtonElement> = {
     select: btnSelect,
     wire: btnWire,
-    place: btnPlaceComponent,
   };
 
-  const setActiveTool = (tool: "select" | "wire" | "place") => {
-    for (const b of Object.values(toolButtons)) b.dataset.selected = "false";
-    toolButtons[tool].dataset.selected = "true";
-  };
+  // (optional) let toolbar drive mode directly
+  btnSelect.addEventListener("click", () => setMode("select"));
+  btnWire.addEventListener("click", () => setMode("wire"));
 
   // -----------------------------
   // Components group (palette)
@@ -107,7 +144,6 @@ export function createTempToolbar(
   compLabel.textContent = "Components";
   compGroup.appendChild(compLabel);
 
-  // scroller container (CSS will make it horizontal)
   const compScroller = document.createElement("div");
   compScroller.className = "ui-compScroller";
   compGroup.appendChild(compScroller);
@@ -115,20 +151,6 @@ export function createTempToolbar(
   const compGrid = document.createElement("div");
   compGrid.className = "ui-compGrid";
   compScroller.appendChild(compGrid);
-
-  // What we WANT to show in the UI (even if not implemented yet)
-  const PALETTE: PaletteItem[] = [
-    { typeId: "resistor", displayName: "Resistor", icon: "resistor" },
-    { typeId: "battery", displayName: "Battery", icon: "battery" },
-    { typeId: "capacitor", displayName: "Capacitor", icon: "capacitor" },
-    { typeId: "bulb", displayName: "Bulb", icon: "bulb" },
-  ];
-
-  // which types are actually implemented/registered
-  const availableTypeIds = new Set(availableTypes.map((t) => t.typeId));
-
-  let activeComponentTypeId = availableTypes[0]?.typeId ?? "resistor";
-  let onCompSelect: ((typeId: string) => void) | null = null;
 
   const compButtons = new Map<string, HTMLButtonElement>();
 
@@ -155,8 +177,8 @@ export function createTempToolbar(
 
     if (implemented) {
       b.addEventListener("click", () => {
-        setActiveComponentTypeId(item.typeId);
-        onCompSelect?.(item.typeId);
+        // clicking a component puts you into that component "place" mode
+        setMode(item.typeId as UiComponentMode);
       });
     } else {
       b.disabled = true;
@@ -166,15 +188,20 @@ export function createTempToolbar(
     compButtons.set(item.typeId, b);
   }
 
-  const setActiveComponentTypeId = (typeId: string) => {
-    activeComponentTypeId = typeId;
+  // -----------------------------
+  // Sync UI selection states from mode
+  // -----------------------------
+  const syncUiToMode = () => {
+    // tools: selected only if mode is that tool
+    for (const [tool, b] of Object.entries(toolButtons) as [UiTool, HTMLButtonElement][]) {
+      b.dataset.selected = mode === tool ? "true" : "false";
+    }
 
+    // components: selected only if mode is that component
     for (const [id, b] of compButtons) {
-      b.dataset.selected = id === typeId ? "true" : "false";
+      b.dataset.selected = mode === id ? "true" : "false";
     }
   };
-
-  const getActiveComponentTypeId = () => activeComponentTypeId;
 
   // -----------------------------
   // Toolbar layout + host
@@ -199,21 +226,20 @@ export function createTempToolbar(
   host.appendChild(root);
 
   // initial states
-  setActiveTool("select");
-  setActiveComponentTypeId(activeComponentTypeId);
+  // start in select mode
+  setMode("select");
+  // but if you want to default to a component pre-selected instead, swap to:
+  // setMode(defaultComponent as UiComponentMode);
 
   return {
     canvasHost,
     btnSelect,
     btnWire,
-    btnPlaceComponent,
+
+    getMode,
+    setMode,
+    onModeChange,
 
     getActiveComponentTypeId,
-    setActiveComponentTypeId,
-    onComponentSelect: (fn) => {
-      onCompSelect = fn;
-    },
-
-    setActiveTool,
   };
 }
