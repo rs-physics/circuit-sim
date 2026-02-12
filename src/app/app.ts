@@ -5,13 +5,13 @@ import { EditorState } from "../editor/state";
 import { getComponentType, listComponentTypes } from "../editor/registry";
 import { SchematicSvg } from "../render/schematicSvg";
 import { hitTest } from "../editor/hitTest";
-import { normalizeAndSegmentWires } from "../editor/wireNormalize";
 import { renderAll } from "./renderAll";
 import { createCameraController } from "../editor/camera";
 import { bindInput } from "./bindInput";
 import { manhattanSegments } from "../editor/geom";
 import { createMoveAndReroute } from "../editor/moveAndReroute";
 import { createTempToolbar } from "../ui/tempToolbar";
+import { normalizeAndSpliceWires } from "../editor/wireNormalize";
 
 /**
  * V1 uses UUIDs for everything. Works fine for an in-memory editor.
@@ -72,13 +72,14 @@ export class App {
 
     // Single-mode toolbar now drives selection.
     // Keep App's activeTypeId in sync when a component mode is chosen.
+    /*
     ui.onModeChange((mode) => {
       if (mode !== "select" && mode !== "wire") {
         activeTypeId = mode; // mode is the component typeId
       }
       doRender();
     });
-
+    */
 
     // -----------------------------
     // 4) Core editor state + view/camera
@@ -139,7 +140,7 @@ export class App {
      * This is called after any operation that edits wires.
      */
     const normalizeWires = () => {
-      state.wires = normalizeAndSegmentWires(state.wires);
+      state.wires = normalizeAndSpliceWires(state.wires, state.components, getComponentType);
     };
 
     /**
@@ -236,19 +237,17 @@ export class App {
      */
     const applyMode = (mode: "select" | "wire" | string) => {
       // clear transient state when switching modes
-      move?.clearSelection();
-      wireStart = null;
-      wirePreviewEnd = null;
+        move?.clearSelection();
+        wireStart = null;
+        wirePreviewEnd = null;
 
-      // cursor + behaviour cues
-      if (mode === "wire") {
-        view.svg.style.cursor = "crosshair";
-      } else if (mode === "select") {
-        view.svg.style.cursor = "default";
-      } else {
-        // placing a component
-        view.svg.style.cursor = "copy";
-      }
+        const cursor =
+          mode === "wire" ? "crosshair" :
+          mode === "select" ? "default" :
+          "copy";
+
+        view.svg.style.cursor = cursor;
+        ui.canvasHost.style.cursor = cursor;
 
       // no more ui.setActiveTool / tool highlighting separately
       // (tempToolbar now highlights based on ui.setMode)

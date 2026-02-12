@@ -12,6 +12,14 @@
 
 import type { ComponentType } from "./componentType";
 import { ResistorType } from "./componentTypes/resistorType";
+import { BatteryType } from "./componentTypes/batteryType";
+import { BulbType } from "./componentTypes/bulbType";
+import { CapacitorType } from "./componentTypes/capacitorType";
+import { SwitchType } from "./componentTypes/switchType";
+import { VarResistorType } from "./componentTypes/varResistorType";
+import { AmmeterType } from "./componentTypes/ammeterType";
+import { VoltmeterType } from "./componentTypes/voltmeterType";
+
 
 // -----------------------------------------------------------------------------
 // Component Type Instances
@@ -20,6 +28,13 @@ import { ResistorType } from "./componentTypes/resistorType";
 // Create one instance per component type.
 // These are effectively singletons for the lifetime of the app.
 const resistor = new ResistorType();
+const battery = new BatteryType();
+const bulb = new BulbType();
+const capacitor = new CapacitorType();
+const sw = new SwitchType();
+const varRes = new VarResistorType();
+const ammeter = new AmmeterType();
+const voltmeter = new VoltmeterType();
 
 /**
  * Internal map of typeId → ComponentType
@@ -29,6 +44,13 @@ const resistor = new ResistorType();
  */
 const types = new Map<string, ComponentType>([
   [resistor.typeId, resistor],
+  [battery.typeId, battery],
+  [bulb.typeId, bulb],
+  [capacitor.typeId, capacitor],
+  [sw.typeId, sw],
+  [varRes.typeId, varRes],
+  [ammeter.typeId, ammeter],
+  [voltmeter.typeId, voltmeter],
 ]);
 
 // -----------------------------------------------------------------------------

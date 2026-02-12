@@ -1,5 +1,7 @@
 import type { Point } from "../editor/grid";
 import type { SymbolSpec } from "../editor/componentType";
+import { svgEl } from "./svgEl";
+import { buildSymbolGroup } from "./drawComponentSymbol";
 
 /**
  * ViewBox: the visible camera window in SVG world units.
@@ -7,19 +9,6 @@ import type { SymbolSpec } from "../editor/componentType";
  */
 type ViewBox = { x: number; y: number; width: number; height: number };
 type WorldRect = { x: number; y: number; width: number; height: number };
-
-/**
- * Small helper to create SVG elements with attributes.
- * Keeps DOM creation noise out of the drawing logic.
- */
-function svgEl<K extends keyof SVGElementTagNameMap>(
-  tag: K,
-  attrs: Record<string, string> = {}
-): SVGElementTagNameMap[K] {
-  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
-  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
-  return el;
-}
 
 /**
  * SchematicSvg
@@ -298,28 +287,22 @@ export class SchematicSvg {
     const isPreview = !!opts.preview;
     const isSelected = !!opts.selected;
 
-    let g: SVGGElement;
+    const g = buildSymbolGroup(inst.pos, inst.rotation, spec, {
+      preview: isPreview,
+      selected: isSelected,
+    });
 
-    switch (spec.kind) {
-      case "rectResistor":
-        g = this.buildRectResistorGroup(inst.pos, inst.rotation, spec, isPreview, isSelected);
-        break;
-
-      default:
-        // This makes it obvious when you add new SymbolSpec kinds but forget to render them.
-        throw new Error(`Unsupported symbol kind: ${(spec as any).kind}`);
-    }
-
-    // Useful for debugging / future click detection via DOM if you ever want that route.
     g.setAttribute("data-id", inst.id);
 
-    // Optional “pop” on selection (CSS drop-shadow via filter attr)
-    if (isSelected && !isPreview) {
-      g.setAttribute("filter", "drop-shadow(0 0 2px rgba(0,0,0,0.4))");
-    }
+    //This section had a selection filter which applied a drop shadow
+    //when selecting a component.  Commented out because im not too keen on it
+    /*
+      if (isSelected && !isPreview) {
+        g.setAttribute("filter", "drop-shadow(0 0 2px rgba(0,0,0,0.4))");
+      }
+    */
 
     if (isPreview) {
-      // Preview is always “the one currently hovering”.
       this.clearPreview();
       this.previewG.appendChild(g);
     } else {
@@ -327,95 +310,4 @@ export class SchematicSvg {
     }
   }
 
-  // ===========================================================================
-  // Symbol builders (private helpers)
-  // ===========================================================================
-
-  /**
-   * Build a resistor group centered at (center), rotated about its center.
-   * The group includes:
-   * - optional selection highlight box
-   * - leads
-   * - resistor body
-   */
-  private buildRectResistorGroup(
-    center: Point,
-    rotationDeg: number,
-    spec: { bodyW: number; bodyH: number; lead: number },
-    isPreview: boolean,
-    isSelected: boolean
-  ) {
-    const w = spec.bodyW;
-    const h = spec.bodyH;
-    const lead = spec.lead;
-
-    // Transform the group so all child geometry can be drawn around (0,0).
-    const g = svgEl("g", {
-      transform: `translate(${center.x} ${center.y}) rotate(${rotationDeg})`,
-      opacity: isPreview ? "0.45" : "1",
-    });
-
-    // Selection highlight box (dashed)
-    if (isSelected && !isPreview) {
-      const halfW = spec.lead + spec.bodyW / 2;
-      const halfH = Math.max(spec.bodyH / 2, 2);
-      const pad = 10;
-
-      g.appendChild(
-        svgEl("rect", {
-          x: `${-halfW - pad}`,
-          y: `${-halfH - pad}`,
-          width: `${(halfW + pad) * 2}`,
-          height: `${(halfH + pad) * 2}`,
-          fill: "none",
-          stroke: "#1e90ff",
-          "stroke-width": "1",
-          "stroke-dasharray": "4 3",
-          "pointer-events": "none",
-        })
-      );
-    }
-
-    // Leads
-    g.appendChild(
-      svgEl("line", {
-        x1: `${-lead - w / 2}`,
-        y1: "0",
-        x2: `${-w / 2}`,
-        y2: "0",
-        stroke: "black",
-        "stroke-width": "2",
-      })
-    );
-
-    g.appendChild(
-      svgEl("line", {
-        x1: `${w / 2}`,
-        y1: "0",
-        x2: `${lead + w / 2}`,
-        y2: "0",
-        stroke: "black",
-        "stroke-width": "2",
-      })
-    );
-
-    // Body
-    g.appendChild(
-      svgEl("rect", {
-        x: `${-w / 2}`,
-        y: `${-h / 2}`,
-        width: `${w}`,
-        height: `${h}`,
-        fill: "white",
-        stroke: "black",
-        "stroke-width": "2",
-      })
-    );
-
-    // IMPORTANT:
-    // Preview should never block pointer events (otherwise selection becomes annoying).
-    if (isPreview) g.setAttribute("pointer-events", "none");
-
-    return g;
-  }
 }

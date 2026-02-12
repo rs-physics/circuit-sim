@@ -7,7 +7,11 @@ export type IconKind =
   | "resistor"
   | "battery"
   | "capacitor"
-  | "bulb";
+  | "bulb"
+  | "switch"
+  | "varResistor"
+  | "ammeter"
+  | "voltmeter";
 
 const ICONS: Record<IconKind, string> = {
   select: `
@@ -85,6 +89,71 @@ const ICONS: Record<IconKind, string> = {
       <path d="M14.5 9.5l-5 5"/>
     </svg>
   `,
+    switch: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <!-- left lead -->
+      <path d="M2 12h6"/>
+      <!-- right lead -->
+      <path d="M16 12h6"/>
+      <!-- open contact -->
+      <circle cx="8" cy="12" r="1"/>
+      <circle cx="16" cy="12" r="1"/>
+      <!-- lever -->
+      <path d="M9 11l5-4"/>
+    </svg>
+  `,
+
+  varResistor: `
+    <svg viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round">
+      <!-- leads -->
+      <path d="M2 12h4"/>
+      <path d="M18 12h4"/>
+      <!-- rectangular body -->
+      <rect x="6" y="8" width="12" height="8"/>
+      <!-- longer diagonal arrow -->
+      <path d="M4 20l16-16"/>
+      <!-- arrow head -->
+      <path d="M15 4h5v5"/>
+    </svg>
+  `,
+
+
+  ammeter: `
+    <svg viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round">
+      <!-- circle -->
+      <circle cx="12" cy="12" r="8"/>
+      <!-- A -->
+      <path d="M9 16l3-8 3 8"/>
+      <path d="M10.5 13h3"/>
+    </svg>
+  `,
+
+
+  voltmeter: `
+    <svg viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round">
+      <!-- circle -->
+      <circle cx="12" cy="12" r="8"/>
+      <!-- V -->
+      <path d="M8 9l4 7 4-7"/>
+    </svg>
+  `,
+
+
 }
 export function getIconSvg(kind: IconKind): string {
   return ICONS[kind];

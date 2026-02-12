@@ -1,6 +1,9 @@
 // src/editor/wireNormalize.ts
 import type { Point } from "./grid";
 import type { WireSegment } from "./types";
+import type { ComponentInstance } from "./types";
+import type { ComponentType } from "./componentType";
+
 
 /**
  * V1 wire model:
@@ -297,4 +300,151 @@ export function normalizeAndSegmentWires(
   return Array.from(byKey.values())
     .filter((s) => !(s.a.x === s.b.x && s.a.y === s.b.y))
     .map((s) => ({ id: makeId(), a: s.a, b: s.b }));
+}
+
+type PortPair = { a: Point; b: Point };
+
+/** Point equality by coordinate. */
+const samePoint = (p: Point, q: Point) => p.x === q.x && p.y === q.y;
+
+/** True if p lies strictly between endpoints along the component axis line. */
+const pointStrictlyBetweenPorts = (p: Point, a: Point, b: Point): boolean => {
+  // vertical
+  if (a.x === b.x) {
+    if (p.x !== a.x) return false;
+    const y1 = Math.min(a.y, b.y);
+    const y2 = Math.max(a.y, b.y);
+    return p.y > y1 && p.y < y2;
+  }
+
+  // horizontal
+  if (a.y === b.y) {
+    if (p.y !== a.y) return false;
+    const x1 = Math.min(a.x, b.x);
+    const x2 = Math.max(a.x, b.x);
+    return p.x > x1 && p.x < x2;
+  }
+
+  // non-manhattan ports shouldn't happen in V1
+  return false;
+};
+
+/**
+ * Remove any wire segments that lie entirely between ports, BUT ONLY if the span
+ * is a "clean run" (no junction endpoints strictly between the ports).
+ *
+ * This avoids accidentally chopping through a T-junction or crossing.
+ */
+function spliceOutBetweenPorts(wires: WireSegment[], pair: PortPair): WireSegment[] {
+  const p1 = pair.a;
+  const p2 = pair.b;
+
+  // Only splice if ports are colinear (axis-aligned)
+  const isVertical = p1.x === p2.x;
+  const isHorizontal = p1.y === p2.y;
+  if (!isVertical && !isHorizontal) return wires;
+
+  // If there are any junction endpoints strictly between ports on that line, abort splice.
+  // (After normalization, endpoints are only junctions / intersections / ends, not every grid point.)
+  for (const s of wires) {
+    const a = s.a;
+    const b = s.b;
+
+    // endpoints, excluding the ports themselves
+    for (const ep of [a, b]) {
+      if (samePoint(ep, p1) || samePoint(ep, p2)) continue;
+      if (pointStrictlyBetweenPorts(ep, p1, p2)) {
+        return wires; // abort: we'd disconnect a junction
+      }
+    }
+  }
+
+  // Otherwise, delete segments entirely inside the [p1,p2] span on the same line.
+  if (isVertical) {
+    const x = p1.x;
+    const y1 = Math.min(p1.y, p2.y);
+    const y2 = Math.max(p1.y, p2.y);
+
+    return wires.filter((s) => {
+      // keep non-verticals
+      if (s.a.x !== s.b.x) return true;
+      // keep verticals not on this x
+      if (s.a.x !== x) return true;
+
+      const segMin = Math.min(s.a.y, s.b.y);
+      const segMax = Math.max(s.a.y, s.b.y);
+
+      // remove if fully within span (including touching the port endpoints)
+      const inside = segMin >= y1 && segMax <= y2;
+      return !inside;
+    });
+  }
+
+  // horizontal
+  const y = p1.y;
+  const x1 = Math.min(p1.x, p2.x);
+  const x2 = Math.max(p1.x, p2.x);
+
+  return wires.filter((s) => {
+    // keep non-horizontals
+    if (s.a.y !== s.b.y) return true;
+    // keep horizontals not on this y
+    if (s.a.y !== y) return true;
+
+    const segMin = Math.min(s.a.x, s.b.x);
+    const segMax = Math.max(s.a.x, s.b.x);
+
+    const inside = segMin >= x1 && segMax <= x2;
+    return !inside;
+  });
+}
+
+/**
+ * Build 2-port pairs for components.
+ * Assumes the component type exposes exactly two ports for V1 components.
+ * If a component has 0/1/3+ ports later, it's ignored by splicing.
+ */
+function getTwoPortPairs(
+  components: ComponentInstance[],
+  getType: (typeId: string) => ComponentType
+): PortPair[] {
+  const out: PortPair[] = [];
+
+  for (const inst of components) {
+    const t = getType(inst.typeId);
+    const ports = t.portWorldPositions(inst);
+
+    if (ports.length !== 2) continue;
+
+    out.push({ a: ports[0].pos, b: ports[1].pos });
+  }
+
+  return out;
+}
+
+/**
+ * Normalize wires AND auto-splice components into straight runs:
+ * - splits at component ports (via extraJunctionPoints)
+ * - removes the wire span between the two ports if it's a clean run
+ */
+export function normalizeAndSpliceWires(
+  wires: WireSegment[],
+  components: ComponentInstance[],
+  getType: (typeId: string) => ComponentType,
+  makeId: () => string = () => crypto.randomUUID()
+): WireSegment[] {
+  if (wires.length === 0) return [];
+
+  const pairs = getTwoPortPairs(components, getType);
+  const portPoints = pairs.flatMap((p) => [p.a, p.b]);
+
+  // 1) split at ports + normal junctions
+  let out = normalizeAndSegmentWires(wires, portPoints, makeId);
+
+  // 2) splice delete between ports (conservative: only if no junctions inside span)
+  for (const pair of pairs) {
+    out = spliceOutBetweenPorts(out, pair);
+  }
+
+  return out;
 }

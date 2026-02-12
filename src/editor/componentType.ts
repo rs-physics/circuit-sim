@@ -31,11 +31,73 @@ export type RectResistorSpec = {
   lead: number;
 };
 
+export type BatterySpec = {
+  kind: "battery";
+  lead: number;      // lead length on each side
+  plateGap: number;  // distance between the two plates
+  longPlate: number; // height of the long plate
+  shortPlate: number;// height of the short plate
+};
+
+export type BulbSpec = {
+  kind: "bulb";
+  lead: number;
+  radius: number;
+};
+
+export type CapacitorSpec = {
+  kind: "capacitor";
+  lead: number;       // lead length from plate to port
+  plateGap: number;   // gap between the two plates
+  plateH: number;     // plate height
+};
+
+export type SwitchSpec = {
+  kind: "switch";
+  lead: number;       // from port to contact
+  contactGap: number; // gap between contacts
+  leverLen: number;   // length of lever arm
+  leverRise: number;  // how “open” the switch looks (y offset)
+};
+
+export type VarResistorSpec = {
+  kind: "varResistor";
+  bodyW: number;
+  bodyH: number;
+  lead: number;
+  arrowPad: number; // how far the arrow extends past body
+};
+
+export type AmmeterSpec = {
+  kind: "ammeter";
+  lead: number;
+  radius: number;
+};
+
+export type VoltmeterSpec = {
+  kind: "voltmeter";
+  lead: number;
+  radius: number;
+};
+
+
+
+
 /**
  * Union of all supported symbol specs.
- * V1 only has resistors, so this union is currently one member.
+ * as we add more components they are exported here.
  */
-export type SymbolSpec = RectResistorSpec;
+export type SymbolSpec =
+  | RectResistorSpec
+  | BatterySpec
+  | BulbSpec
+  | CapacitorSpec
+  | SwitchSpec
+  | VarResistorSpec
+  | AmmeterSpec
+  | VoltmeterSpec
+  ;
+
 
 /**
  * ComponentType is the "class" of a component (resistor, capacitor, etc.).

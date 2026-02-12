@@ -51,6 +51,12 @@ export function createTempToolbar(
     { typeId: "battery", displayName: "Battery", icon: "battery" },
     { typeId: "capacitor", displayName: "Capacitor", icon: "capacitor" },
     { typeId: "bulb", displayName: "Bulb", icon: "bulb" },
+
+    { typeId: "switch", displayName: "Switch", icon: "switch" },
+    { typeId: "varResistor", displayName: "Var. Resistor", icon: "varResistor" },
+
+    { typeId: "ammeter", displayName: "Ammeter", icon: "ammeter" },
+    { typeId: "voltmeter", displayName: "Voltmeter", icon: "voltmeter" },
   ];
 
   const availableTypeIds = new Set(availableTypes.map((t) => t.typeId));

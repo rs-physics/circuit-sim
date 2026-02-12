@@ -134,6 +134,7 @@ export function bindInput(deps: BindInputDeps) {
   // Context menu (right click): cancel / exit modes and deselect
   // ---------------------------------------------------------------------------
   view.svg.addEventListener("contextmenu", (e: MouseEvent) => {
+    if (e.shiftKey) return; // allow Shift+RightClick for devtools
     e.preventDefault();
 
     const mode = deps.getMode();
@@ -334,6 +335,8 @@ export function bindInput(deps: BindInputDeps) {
     };
 
     deps.state.components.push(inst);
+    // splice into any wire under the ports (and re-normalize)
+    deps.normalizeWires();
 
     deps.clearSelection();
     deps.doRender();
