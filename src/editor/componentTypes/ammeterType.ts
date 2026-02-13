@@ -14,7 +14,7 @@ export class AmmeterType implements ComponentType {
   symbolSpec(): SymbolSpec {
     return {
       kind: "ammeter",
-      lead: 53,
+      lead: 28,
       radius: 22,
     };
   }

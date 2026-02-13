@@ -14,7 +14,7 @@ export class CapacitorType implements ComponentType {
   symbolSpec(): SymbolSpec {
     return {
       kind: "capacitor",
-      lead: 67.5,     // keeps ports at ±75 with plateGap=15
+      lead: 42.5,     // keeps ports at ±75 with plateGap=15
       plateGap: 15,
       plateH: 60,
     };

@@ -14,7 +14,7 @@ export class SwitchType implements ComponentType {
   symbolSpec(): SymbolSpec {
     return {
       kind: "switch",
-      lead: 50,        // grid aligned with contactGap=15
+      lead: 25,        // grid aligned with contactGap=50
       contactGap: 50,
       leverLen: 46,
       leverRise: 18,     // “open” look

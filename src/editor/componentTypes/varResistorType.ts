@@ -16,7 +16,7 @@ export class VarResistorType implements ComponentType {
       kind: "varResistor",
       bodyW: 70,
       bodyH: 28,
-      lead: 40,
+      lead: 15,
       arrowPad: 14,
     };
   }

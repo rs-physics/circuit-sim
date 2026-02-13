@@ -14,7 +14,7 @@ export class BulbType implements ComponentType {
   symbolSpec(): SymbolSpec {
     return {
       kind: "bulb",
-      lead: 53,
+      lead: 28,
       radius: 22,
     };
   }

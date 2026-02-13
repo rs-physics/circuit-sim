@@ -40,7 +40,7 @@ export class ResistorType implements ComponentType {
       kind: "rectResistor",
       bodyW: 70,
       bodyH: 28,
-      lead: 40,
+      lead: 15,
     };
   }
 

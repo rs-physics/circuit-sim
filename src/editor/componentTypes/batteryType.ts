@@ -14,7 +14,7 @@ export class BatteryType implements ComponentType {
   symbolSpec(): SymbolSpec {
     return {
       kind: "battery",
-      lead: 67.5,        // 65 + (20/2) = 75 → 3 * 25 grid alignment
+      lead: 42.5,        // 65 + (20/2) = 75 → 3 * 25 grid alignment
       plateGap: 15,
       longPlate: 60,
       shortPlate: 20,

@@ -129,7 +129,7 @@ export class App {
     let wirePreviewEnd: Point | null = null;
 
     // Debug overlay toggle (ports / hit boxes etc.)
-    let showDebug = true;
+    let showDebug = false;
 
     // -----------------------------
     // 6) Small “actions” that mutate state (App-level commands)

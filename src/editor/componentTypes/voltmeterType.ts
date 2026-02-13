@@ -14,7 +14,7 @@ export class VoltmeterType implements ComponentType {
   symbolSpec(): SymbolSpec {
     return {
       kind: "voltmeter",
-      lead: 53,
+      lead: 28,
       radius: 22,
     };
   }
