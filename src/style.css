@@ -30,6 +30,31 @@ body {
   grid-template-rows: auto 1fr;
   height: 100vh;
   width: 100%;
+  position: relative; /* IMPORTANT: anchors the toast */
+}
+
+.ui-toast{
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(17, 24, 39, 0.92); /* dark slate */
+  color: #fff;
+
+  font: 500 13px/1.2 ui-sans-serif, system-ui;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.ui-toast[data-visible="true"]{
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .ui-panel{
@@ -88,6 +113,13 @@ body {
   letter-spacing: 0.04em;
   color: #4b5563;
   text-align: center;
+}
+
+/* actions grid — horizontal layout */
+.ui-actionsGrid{
+  display: grid;
+  grid-template-columns: repeat(4, 56px); /* 3 buttons in one row */
+  gap: 8px;
 }
 
 /* tool button tiles */

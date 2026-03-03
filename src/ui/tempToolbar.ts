@@ -24,10 +24,18 @@ export type TempToolbar = {
   btnWire: HTMLButtonElement;
   btnSelect: HTMLButtonElement;
 
+  // action buttons
+  btnRotate: HTMLButtonElement;
+  btnExportPng: HTMLButtonElement;
+  btnCopyPng: HTMLButtonElement;
+
   // single source of truth
   getMode: () => UiMode;
   setMode: (mode: UiMode) => void;
   onModeChange: (fn: (mode: UiMode) => void) => void;
+
+  // Toast messages
+  showToast: (msg: string) => void;
 
   // convenience (optional, but keeps App changes small)
   getActiveComponentTypeId: () => string | null;
@@ -35,13 +43,37 @@ export type TempToolbar = {
 
 export function createTempToolbar(
   host: HTMLDivElement,
-  availableTypes: ToolbarComponentType[]
+  availableTypes: ToolbarComponentType[],  actions: {
+    exportPng: () => void | Promise<void>;
+    copyPng: () => void | Promise<void>;
+  }
 ): TempToolbar {
   const root = document.createElement("div");
   root.className = "ui-root";
 
   const toolbar = document.createElement("div");
   toolbar.className = "ui-toolbar ui-panel";
+
+  // -----------------------------
+  // Toast (small in-app notification)
+  // -----------------------------
+  const toast = document.createElement("div");
+  toast.className = "ui-toast";
+  toast.dataset.visible = "false";
+  root.appendChild(toast);
+
+  let toastTimer: number | null = null;
+
+  const showToast = (msg: string) => {
+    toast.textContent = msg;
+    toast.dataset.visible = "true";
+
+    if (toastTimer !== null) window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => {
+      toast.dataset.visible = "false";
+      toastTimer = null;
+    }, 1500);
+  };
 
   // -----------------------------
   // Components palette definition
@@ -210,6 +242,81 @@ export function createTempToolbar(
   };
 
   // -----------------------------
+  // Actions group (rotate/export)
+  // -----------------------------
+  const actionsGroup = document.createElement("div");
+  actionsGroup.className = "ui-group";
+
+  const actionsLabel = document.createElement("div");
+  actionsLabel.className = "ui-groupLabel";
+  actionsLabel.textContent = "Actions";
+  actionsGroup.appendChild(actionsLabel);
+
+  const actionsGrid = document.createElement("div");
+  actionsGrid.className = "ui-actionsGrid";
+  actionsGroup.appendChild(actionsGrid);
+
+  const makeActionTile = (label: string, iconKind: IconKind) => {
+    const wrap = document.createElement("div");
+    wrap.className = "ui-toolWrap"; // reuse same wrapper styling
+
+    const title = document.createElement("div");
+    title.className = "ui-toolLabel"; // reuse same label styling
+    title.textContent = label;
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ui-toolTile ui-actionTile"; // reuse tool tile styling
+    btn.dataset.selected = "false";
+    btn.innerHTML = getIconSvg(iconKind);
+
+    wrap.appendChild(title);
+    wrap.appendChild(btn);
+
+    return { wrap, btn };
+  };
+
+  const rotateAction = makeActionTile("Rotate", "rotate");
+  const deleteAction = makeActionTile("Delete", "delete");
+  const exportAction = makeActionTile("Export", "export");
+  const copyAction = makeActionTile("Copy", "copy");
+
+  actionsGrid.appendChild(rotateAction.wrap);
+  actionsGrid.appendChild(deleteAction.wrap);
+  actionsGrid.appendChild(exportAction.wrap);
+  actionsGrid.appendChild(copyAction.wrap);
+
+  const btnRotate = rotateAction.btn;
+  const btnDelete = deleteAction.btn;
+  const btnExportPng = exportAction.btn;
+  const btnCopyPng = copyAction.btn;
+
+  btnRotate.addEventListener("click", () => {
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "r" })
+    );
+  });
+
+  btnDelete.addEventListener("click", () => {
+  window.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "delete" })
+  );
+});
+
+btnExportPng.addEventListener("click", actions.exportPng);
+btnCopyPng.addEventListener("click", async () => {
+  try {
+    console.log("Copy button clicked");
+    await actions.copyPng();
+    console.log("Circuit copied to clipboard.");
+    showToast("Circuit copied to clipboard.");
+  } catch (err) {
+    console.error("Copy failed:", err);
+    showToast("Couldn't copy circuit. Use Export instead.");
+  }
+});
+
+  // -----------------------------
   // Toolbar layout + host
   // -----------------------------
   const spacer = document.createElement("div");
@@ -221,6 +328,7 @@ export function createTempToolbar(
 
   toolbar.appendChild(toolsGroup);
   toolbar.appendChild(compGroup);
+  toolbar.appendChild(actionsGroup);
   toolbar.appendChild(spacer);
   toolbar.appendChild(hint);
 
@@ -241,11 +349,17 @@ export function createTempToolbar(
     canvasHost,
     btnSelect,
     btnWire,
+  
+    btnRotate,
+    btnExportPng,
+    btnCopyPng,
 
     getMode,
     setMode,
     onModeChange,
 
     getActiveComponentTypeId,
+
+    showToast,
   };
 }

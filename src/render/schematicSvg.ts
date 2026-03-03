@@ -57,10 +57,19 @@ export class SchematicSvg {
     // Create layers. Order matters.
     this.gridG = svgEl("g");
     this.gridG.setAttribute("shape-rendering", "crispEdges");
+    this.gridG.setAttribute("data-layer", "grid");
+
     this.wiresG = svgEl("g");
+    this.wiresG.setAttribute("data-layer", "wires");
+
     this.mainG = svgEl("g");
+    this.mainG.setAttribute("data-layer", "main");
+
     this.debugG = svgEl("g");
+    this.debugG.setAttribute("data-layer", "debug");
+
     this.previewG = svgEl("g");
+    this.previewG.setAttribute("data-layer", "preview");
 
     this.svg.appendChild(this.gridG);
     this.svg.appendChild(this.wiresG);
@@ -265,7 +274,6 @@ export class SchematicSvg {
         })
       );
     }
-
 
   }
 

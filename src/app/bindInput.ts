@@ -2,6 +2,7 @@ import type { Point } from "../editor/grid";
 import type { ComponentInstance, RotationDeg } from "../editor/types";
 import type { EditorState } from "../editor/state";
 import type { SchematicSvg } from "../render/schematicSvg";
+import { cancelCommand } from "./commands";
 
 /**
  * Single-mode model:
@@ -134,37 +135,18 @@ export function bindInput(deps: BindInputDeps) {
   // Context menu (right click): cancel / exit modes and deselect
   // ---------------------------------------------------------------------------
   view.svg.addEventListener("contextmenu", (e: MouseEvent) => {
-    if (e.shiftKey) return; // allow Shift+RightClick for devtools
+    if (e.shiftKey) return;
     e.preventDefault();
 
-    const mode = deps.getMode();
-
-    // Place mode: right-click exits to select
-    if (isPlaceMode(mode)) {
-      deps.setMode("select");
-      deps.doRender();
-      return;
-    }
-
-    // Wire mode:
-    // - if a chain is in progress: right-click ends the chain
-    // - otherwise: right-click exits wire mode (back to select)
-    if (isWireMode(mode)) {
-      if (deps.wireStart()) {
-        deps.setWireStart(null);
-        deps.setWirePreviewEnd(null);
-        deps.doRender();
-        return;
-      }
-
-      deps.setMode("select");
-      deps.doRender();
-      return;
-    }
-
-    // Select mode: right-click deselects anything selected
-    deps.clearSelection();
-    deps.doRender();
+    cancelCommand({
+      getMode: deps.getMode,
+      setMode: deps.setMode,
+      wireStart: deps.wireStart,
+      setWireStart: deps.setWireStart,
+      setWirePreviewEnd: deps.setWirePreviewEnd,
+      clearSelection: deps.clearSelection,
+      doRender: deps.doRender,
+    });
   });
 
   // ---------------------------------------------------------------------------

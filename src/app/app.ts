@@ -12,6 +12,8 @@ import { manhattanSegments } from "../editor/geom";
 import { createMoveAndReroute } from "../editor/moveAndReroute";
 import { createTempToolbar } from "../ui/tempToolbar";
 import { normalizeAndSpliceWires } from "../editor/wireNormalize";
+import { exportSvgAsPng, copySvgAsPngToClipboard } from "../render/exportSvgPng";
+import { cancelCommand } from "./commands";
 
 /**
  * V1 uses UUIDs for everything. Works fine for an in-memory editor.
@@ -57,7 +59,42 @@ export class App {
     // -----------------------------
     // 3) Temporary UI scaffold (will be replaced later)
     // -----------------------------
-    const ui = createTempToolbar(host, availableTypes);
+  const ui = createTempToolbar(host, availableTypes, {
+    exportPng: async () => {
+      cancelCommand({
+        getMode: ui.getMode,
+        setMode: ui.setMode,
+        wireStart: () => wireStart,
+        setWireStart: (p) => { wireStart = p; },
+        setWirePreviewEnd: (p) => { wirePreviewEnd = p; },
+        clearSelection: () => move?.clearSelection(),
+        doRender,
+      });
+
+      await exportSvgAsPng(view.svg, {
+        filename: "circuit.png",
+        padding: 24,
+        scale: 2,
+      });
+    },
+
+    copyPng: async () => {
+      cancelCommand({
+        getMode: ui.getMode,
+        setMode: ui.setMode,
+        wireStart: () => wireStart,
+        setWireStart: (p) => { wireStart = p; },
+        setWirePreviewEnd: (p) => { wirePreviewEnd = p; },
+        clearSelection: () => move?.clearSelection(),
+        doRender,
+      });
+
+      await copySvgAsPngToClipboard(view.svg, {
+        padding: 24,
+        scale: 2,
+      });
+    },
+  });
 
     // New single-mode wiring
     ui.onModeChange((mode) => {

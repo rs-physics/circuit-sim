@@ -11,7 +11,11 @@ export type IconKind =
   | "switch"
   | "varResistor"
   | "ammeter"
-  | "voltmeter";
+  | "voltmeter"
+  | "rotate"
+  | "delete"
+  | "export"
+  | "copy";
 
 const ICONS: Record<IconKind, string> = {
   select: `
@@ -153,7 +157,66 @@ const ICONS: Record<IconKind, string> = {
     </svg>
   `,
 
+  rotate: `
+    <svg viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round">
 
+      <!-- clockwise half arc (top to right) -->
+      <path d="M6 12a6 6 0 0 1 12 0"/>
+
+      <!-- arrow head at right end (clockwise) -->
+      <path d="M14 10l4 4 3 -4"/>
+
+    </svg>
+  `,
+
+  delete: `
+  <svg viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round">
+    <!-- bin body -->
+    <path d="M4 7h16"/>
+    <path d="M6 7l1 12h10l1-12"/>
+    <!-- lid -->
+    <path d="M9 7V4h6v3"/>
+  </svg>
+`,
+
+  export: `
+    <svg viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round">
+      <!-- box -->
+      <rect x="4" y="12" width="16" height="8"/>
+      <!-- arrow up -->
+      <path d="M12 4v10"/>
+      <path d="M8 8l4-4 4 4"/>
+    </svg>
+  `,
+
+  copy: `
+    <svg viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round">
+      <!-- back sheet -->
+      <rect x="9" y="9" width="11" height="11"/>
+      <!-- front sheet -->
+      <rect x="4" y="4" width="11" height="11"/>
+    </svg>
+  `,
 }
 export function getIconSvg(kind: IconKind): string {
   return ICONS[kind];
