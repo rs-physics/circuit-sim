@@ -91,8 +91,8 @@ export function createTempToolbar(
     { typeId: "voltmeter", displayName: "Voltmeter", icon: "voltmeter" },
     { typeId: "thermistor", displayName: "Thermistor", icon: "thermistor" },
     { typeId: "ldr", displayName: "LDR", icon: "ldr" },
-    { typeId: "diode", displayName: "Diode", icon: "varResistor" },
-    { typeId: "led", displayName: "LED", icon: "resistor" },
+    { typeId: "diode", displayName: "Diode", icon: "diode" },
+    { typeId: "led", displayName: "LED", icon: "led" },
   ];
 
   const availableTypeIds = new Set(availableTypes.map((t) => t.typeId));

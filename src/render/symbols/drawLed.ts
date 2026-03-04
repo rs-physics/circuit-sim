@@ -15,6 +15,10 @@ export function buildLedGroup(
   const w = spec.bodyW;
   const h = spec.bodyH;
   const barW = spec.barW;
+  const GRID = 25;
+  const halfBody = w / 2;
+  const halfWTarget = Math.round((halfBody + lead) / GRID) * GRID;
+  const leadDraw = Math.max(0, halfWTarget - halfBody);
 
   const arrowPad = spec.arrowPad;
   const arrowLen = spec.arrowLen;
@@ -27,18 +31,17 @@ export function buildLedGroup(
     opacity: preview ? "0.45" : "1",
   });
 
-  // selection bbox (room for arrows to the upper-right)
+  // selection bbox (room for arrows above and below)
   if (selected && !preview) {
     const selPad = 10;
-    const extraTop = arrowPad + arrowLen + 14;
-    const extraRight = arrowPad + arrowLen + 14;
+    const extraTop = arrowPad + arrowLen;
 
     g.appendChild(
       svgEl("rect", {
         x: `${-halfW - selPad}`,
         y: `${-halfH - selPad - extraTop}`,
-        width: `${(halfW + selPad) * 2 + extraRight}`,
-        height: `${(halfH + selPad) * 2 + extraTop}`,
+        width: `${(halfW + selPad) * 2}`,
+        height: `${(halfH + selPad) * 2 + extraTop * 2}`,
         fill: "none",
         stroke: "#1e90ff",
         "stroke-width": "1",
@@ -48,10 +51,10 @@ export function buildLedGroup(
     );
   }
 
-  // leads
+  // leads (snapped so ports land on GRID)
   g.appendChild(
     svgEl("line", {
-      x1: `${-lead - w / 2}`,
+      x1: `${-leadDraw - w / 2}`,
       y1: "0",
       x2: `${-w / 2}`,
       y2: "0",
@@ -65,7 +68,7 @@ export function buildLedGroup(
     svgEl("line", {
       x1: `${w / 2}`,
       y1: "0",
-      x2: `${lead + w / 2}`,
+      x2: `${leadDraw + w / 2}`,
       y2: "0",
       stroke: "black",
       "stroke-width": "2",
@@ -73,15 +76,19 @@ export function buildLedGroup(
     })
   );
 
-  // diode triangle (anode left, pointing right)
-  const xL = -w / 2;
-  const xR = +w / 2 - barW - 2;
-  const yT = -h / 2;
-  const yB = +h / 2;
+  // --- Diode body (LED = diode + emission arrows) ---
+  const barX = +w / 2 - barW;  // cathode bar zone starts here (right)
+  const xL = -w / 2;          // triangle base x (left edge)
+  const xR = barX + 1;            // triangle tip touches the bar (NO GAP)
 
+  const triScale = 1.45;
+  const yT = -(h / 2) * triScale;
+  const yB = +(h / 2) * triScale;
+
+  // diode triangle: base vertical on left, tip on right
   g.appendChild(
     svgEl("polygon", {
-      points: `${xL},0 ${xR},${yT} ${xR},${yB}`,
+      points: `${xL},${yT} ${xL},${yB} ${xR},0`,
       fill: "white",
       stroke: "black",
       "stroke-width": "2",
@@ -89,20 +96,23 @@ export function buildLedGroup(
     })
   );
 
-  // cathode bar
-  const barX = +w / 2 - barW;
+  // cathode bar as stroke line (same height as triangle)
+  const barCenterX = barX + barW / 2;
   g.appendChild(
-    svgEl("rect", {
-      x: `${barX}`,
-      y: `${-h / 2}`,
-      width: `${barW}`,
-      height: `${h}`,
-      fill: "black",
+    svgEl("line", {
+      x1: `${barCenterX}`,
+      y1: `${yT}`,
+      x2: `${barCenterX}`,
+      y2: `${yB}`,
+      stroke: "black",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
     })
   );
 
   // --- LED emission arrows (pointing OUTWARD) ---
   const drawArrow = (x1: number, y1: number, x2: number, y2: number) => {
+    // shaft
     g.appendChild(
       svgEl("line", {
         x1: `${x1}`,
@@ -115,6 +125,7 @@ export function buildLedGroup(
       })
     );
 
+    // arrow head: "V" at (x2,y2)
     const dx = x2 - x1;
     const dy = y2 - y1;
     const len = Math.hypot(dx, dy) || 1;
@@ -156,8 +167,9 @@ export function buildLedGroup(
   };
 
   // Place arrows above-right of diode
+  // Use yT (triangle top) as reference so arrows scale with triScale.
   const baseX = +w / 2 + arrowPad;
-  const baseY1 = -h / 2 - arrowPad;
+  const baseY1 = yT - arrowPad;
   const baseY2 = baseY1 + 12;
 
   // Arrows go up-right

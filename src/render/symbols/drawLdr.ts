@@ -14,12 +14,13 @@ export function buildLdrGroup(
   const w = spec.bodyW;
   const h = spec.bodyH;
   const lead = spec.lead;
+  const r = Math.max(w, h) * 0.62; // circle radius (tweak 0.6–0.7)
 
   const arrowPad = spec.arrowPad;
   const arrowLen = spec.arrowLen;
 
-  const halfW = lead + w / 2;
-  const halfH = Math.max(h / 2, 2);
+  const halfW = Math.max(lead + w / 2, r);
+  const halfH = Math.max(r, h / 2, 2);
 
   const g = svgEl("g", {
     transform: `translate(${center.x} ${center.y}) rotate(${rotationDeg})`,
@@ -29,13 +30,12 @@ export function buildLdrGroup(
   // selection bbox (room for arrows above)
   if (selected && !preview) {
     const selPad = 10;
-    const extraTop = arrowPad + arrowLen + 10;
     g.appendChild(
       svgEl("rect", {
         x: `${-halfW - selPad}`,
-        y: `${-halfH - selPad - extraTop}`,
+        y: `${-halfH - selPad}`,
         width: `${(halfW + selPad) * 2}`,
-        height: `${(halfH + selPad) * 2 + extraTop}`,
+        height: `${(halfH + selPad) * 2}`,
         fill: "none",
         stroke: "#1e90ff",
         "stroke-width": "1",
@@ -44,6 +44,18 @@ export function buildLdrGroup(
       })
     );
   }
+
+      // circle around resistor (LDR body)
+  g.appendChild(
+    svgEl("circle", {
+      cx: "0",
+      cy: "0",
+      r: `${r}`,
+      fill: "white",
+      stroke: "black",
+      "stroke-width": "2",
+    })
+  );
 
   // leads
   g.appendChild(
@@ -69,6 +81,8 @@ export function buildLdrGroup(
       "stroke-linecap": "round",
     })
   );
+
+
 
   // body (same as rect resistor)
   g.appendChild(

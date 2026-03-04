@@ -12,6 +12,8 @@ export type IconKind =
   | "varResistor"
   | "thermistor"
   | "ldr"
+  | "diode"
+  | "led"
   | "ammeter"
   | "voltmeter"
   | "rotate"
@@ -181,14 +183,62 @@ const ICONS: Record<IconKind, string> = {
     <rect x="8" y="10" width="8" height="4"/>
 
     <!-- arrow shaft -->
-    <path d="M1 2l3 2"/>
+    <path d="M1 2l4 2"/>
 
     <!-- arrow head -->
-    <path d="M4 4l-4 0"/>
-    <path d="M4 4l0 -4"/>
+    <path d="M5 5l-4 0"/>
+    <path d="M5 5l0 -4"/>
     </svg>
   `,
 
+  diode: `
+  <svg viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round">
+
+    <!-- leads -->
+    <path d="M2 12h4"/>
+    <path d="M17 12h5"/>
+
+    <!-- triangle -->
+    <path d="M6 7l8 5-8 5z"/>
+
+    <!-- cathode bar -->
+    <path d="M16 7v10"/>
+
+  </svg>
+`,
+
+  led: `
+    <svg viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round">
+
+      <!-- leads -->
+      <path d="M2 12h4"/>
+      <path d="M18 12h4"/>
+
+      <!-- diode triangle -->
+      <path d="M6 7l8 5-8 5z"/>
+
+      <!-- cathode bar -->
+      <path d="M16 7v10"/>
+
+      <!-- emission arrow -->
+      <path d="M19 6l4 -2"/>
+
+      <!-- arrow head -->
+      <path d="M23 3l-3 0"/>
+      <path d="M23 3l0 3"/>
+
+    </svg>
+  `,
 
   voltmeter: `
     <svg viewBox="0 0 24 24"

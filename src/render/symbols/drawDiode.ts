@@ -15,6 +15,10 @@ export function buildDiodeGroup(
   const w = spec.bodyW;
   const h = spec.bodyH;
   const barW = spec.barW;
+  const GRID = 25;
+  const halfBody = w / 2;
+  const halfWTarget = Math.round((halfBody + lead) / GRID) * GRID;
+  const leadDraw = Math.max(0, halfWTarget - halfBody);
 
   const halfW = lead + w / 2;
   const halfH = Math.max(h / 2, 2);
@@ -42,10 +46,10 @@ export function buildDiodeGroup(
     );
   }
 
-  // leads
+  // leads (snapped so ports land on GRID)
   g.appendChild(
     svgEl("line", {
-      x1: `${-lead - w / 2}`,
+      x1: `${-leadDraw - w / 2}`,
       y1: "0",
       x2: `${-w / 2}`,
       y2: "0",
@@ -59,7 +63,7 @@ export function buildDiodeGroup(
     svgEl("line", {
       x1: `${w / 2}`,
       y1: "0",
-      x2: `${lead + w / 2}`,
+      x2: `${leadDraw + w / 2}`,
       y2: "0",
       stroke: "black",
       "stroke-width": "2",
@@ -67,16 +71,19 @@ export function buildDiodeGroup(
     })
   );
 
-  // diode triangle (anode on left, pointing right)
-  // triangle points: left-mid, right-top, right-bottom (or vice versa)
-  const xL = -w / 2;
-  const xR = +w / 2 - barW - 2; // leave space for bar
-  const yT = -h / 2;
-  const yB = +h / 2;
+  // geometry
+  // Leave space for the cathode bar on the right.
+  const triScale = 1.45;              // coefficient for the triangle height
+  const barX = +w / 2 - barW;        // start of bar zone (right side)
+  const xL = -w / 2;                // left edge of diode body zone
+  const xR = barX + 1;                  // triangle tip sits on the ba
+  const yT = -(h / 2) * triScale;
+  const yB = +(h / 2) * triScale;
 
+  // diode triangle: base vertical on left, tip on right
   g.appendChild(
     svgEl("polygon", {
-      points: `${xL},0 ${xR},${yT} ${xR},${yB}`,
+      points: `${xL},${yT} ${xL},${yB} ${xR},0`,
       fill: "white",
       stroke: "black",
       "stroke-width": "2",
@@ -84,15 +91,17 @@ export function buildDiodeGroup(
     })
   );
 
-  // cathode bar on the right
-  const barX = +w / 2 - barW;
+  // cathode bar: draw as a stroke (cleaner than a filled rect)
+  const barCenterX = barX + barW / 2;
   g.appendChild(
-    svgEl("rect", {
-      x: `${barX}`,
-      y: `${-h / 2}`,
-      width: `${barW}`,
-      height: `${h}`,
-      fill: "black",
+    svgEl("line", {
+      x1: `${barCenterX}`,
+      y1: `${yT}`,
+      x2: `${barCenterX}`,
+      y2: `${yB}`,
+      stroke: "black",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
     })
   );
 

@@ -27,13 +27,12 @@ export function buildThermistorGroup(
   // selection bbox
   if (selected && !preview) {
     const selPad = 10;
-    const extraTop = 12; // room for the diagonal slash
     g.appendChild(
       svgEl("rect", {
         x: `${-halfW - selPad}`,
-        y: `${-halfH - selPad - extraTop}`,
+        y: `${-halfH - selPad}`,
         width: `${(halfW + selPad) * 2}`,
-        height: `${(halfH + selPad) * 2 + extraTop}`,
+        height: `${(halfH + selPad) * 2}`,
         fill: "none",
         stroke: "#1e90ff",
         "stroke-width": "1",
@@ -90,10 +89,23 @@ export function buildThermistorGroup(
 
   g.appendChild(
     svgEl("line", {
-      x1: `${x1}`,
+      x1: `${x1 + pad * 1.5}`,
       y1: `${y1}`,
       x2: `${x2}`,
       y2: `${y2}`,
+      stroke: "black",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+    })
+  );
+
+  // thermistor bottom horizontal line
+  g.appendChild(
+    svgEl("line", {
+      x1: `${x1}`,
+      y1: `${y1}`,
+      x2: `${x1 + pad * 1.5}`,
+      y2: `${y1}`,
       stroke: "black",
       "stroke-width": "2",
       "stroke-linecap": "round",
