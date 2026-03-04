@@ -51,7 +51,6 @@ export function buildLdrGroup(
       cx: "0",
       cy: "0",
       r: `${r}`,
-      fill: "white",
       stroke: "black",
       "stroke-width": "2",
     })
