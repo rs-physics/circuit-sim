@@ -74,10 +74,78 @@ body {
 /* spacer pushes hint to the right */
 .ui-spacer{ flex: 1; }
 
-.ui-hint{
-  font: 500 12px/1.2 ui-sans-serif, system-ui;
-  color: #6b7280;
+/* shortcuts panel (sits next to Actions) */
+.ui-shortcuts{
+  display: grid;
+  gap: 8px;
+  align-content: start;
+
+  padding: 0 4px; /* tiny breathing space, matches your layout vibe */
+  margin-right: 16px;   /* ← space from right edge of toolbar */
+}
+
+/* title styling mirrors group labels, but left aligned */
+.ui-shortcutsTitle{
+  font: var(--ui-label-font);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #4b5563;
+  text-align: center;
+}
+
+/* NEW: 3 rows max, then start a new column.
+   Each "row" is actually a key+desc pair using subgrid columns. */
+.ui-shortcutsGrid{
+  display: grid;
+
+  /* 3 rows (each shortcut is one row) */
+  grid-auto-rows: min-content;
+
+  /* Fill DOWN first, then make a new column */
+  grid-auto-flow: column;
+
+  /* 3 rows max before wrapping into a new column */
+  grid-template-rows: repeat(3, min-content);
+
+  /* Each column consists of (key, desc) */
+  grid-auto-columns: max-content;
+
+  /* spacing */
+  column-gap: 18px;
+  row-gap: 6px;
+
+  align-items: center;
+}
+
+/* keycaps */
+.ui-shortcutKey{
+  font: var(--ui-label-font);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #4b5563;
+
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  box-shadow: var(--shadow);
   white-space: nowrap;
+}
+
+.ui-shortcutItem{
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Make each shortcut pair act like a 2-col mini grid */
+.ui-shortcutKey{
+  justify-self: start;
+}
+
+.ui-shortcutDesc{
+  justify-self: start;
 }
 
 /* group headings */
@@ -164,7 +232,7 @@ body {
 /* components palette */
 .ui-compGrid{
   display: grid;
-  grid-template-columns: repeat(4, 34px);
+  grid-template-columns: repeat(6, 34px);
   grid-auto-rows: 34px;
   gap: 6px;
 

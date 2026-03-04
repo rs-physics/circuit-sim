@@ -7,8 +7,12 @@ import { buildBulbGroup } from "./symbols/drawBulb";
 import { buildCapacitorGroup } from "./symbols/drawCapacitor";
 import { buildSwitchGroup } from "./symbols/drawSwitch";
 import { buildVarResistorGroup } from "./symbols/drawVarResistor";
+import { buildThermistorGroup } from "./symbols/drawThermistor";
+import { buildLdrGroup } from "./symbols/drawLdr";
 import { buildAmmeterGroup } from "./symbols/drawAmmeter";
 import { buildVoltmeterGroup } from "./symbols/drawVoltmeter";
+import { buildDiodeGroup } from "./symbols/drawDiode";
+import { buildLedGroup } from "./symbols/drawLed";
 
 
 export function buildSymbolGroup(
@@ -35,6 +39,18 @@ export function buildSymbolGroup(
 
     case "varResistor":
       return buildVarResistorGroup(center, rotationDeg, spec, flags);
+
+    case "thermistor":
+      return buildThermistorGroup(center, rotationDeg, spec, flags);
+
+    case "ldr":
+      return buildLdrGroup(center, rotationDeg, spec, flags);
+
+    case "diode":
+      return buildDiodeGroup(center, rotationDeg, spec, flags);
+
+    case "led":
+      return buildLedGroup(center, rotationDeg, spec, flags);
 
     case "ammeter":
       return buildAmmeterGroup(center, rotationDeg, spec, flags);

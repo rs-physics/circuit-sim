@@ -17,6 +17,10 @@ import { BulbType } from "./componentTypes/bulbType";
 import { CapacitorType } from "./componentTypes/capacitorType";
 import { SwitchType } from "./componentTypes/switchType";
 import { VarResistorType } from "./componentTypes/varResistorType";
+import { ThermistorType } from "./componentTypes/thermistorType";
+import { LdrType } from "./componentTypes/ldrType";
+import { DiodeType } from "./componentTypes/diodeType";
+import { LedType } from "./componentTypes/LedType";
 import { AmmeterType } from "./componentTypes/ammeterType";
 import { VoltmeterType } from "./componentTypes/voltmeterType";
 
@@ -33,6 +37,10 @@ const bulb = new BulbType();
 const capacitor = new CapacitorType();
 const sw = new SwitchType();
 const varRes = new VarResistorType();
+const thermistor = new ThermistorType();
+const ldr = new LdrType();
+const diode = new DiodeType();
+const led = new LedType();
 const ammeter = new AmmeterType();
 const voltmeter = new VoltmeterType();
 
@@ -49,6 +57,10 @@ const types = new Map<string, ComponentType>([
   [capacitor.typeId, capacitor],
   [sw.typeId, sw],
   [varRes.typeId, varRes],
+  [thermistor.typeId, thermistor],
+  [ldr.typeId, ldr],
+  [diode.typeId, diode],
+  [led.typeId, led],
   [ammeter.typeId, ammeter],
   [voltmeter.typeId, voltmeter],
 ]);

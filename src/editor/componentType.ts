@@ -68,6 +68,42 @@ export type VarResistorSpec = {
   arrowPad: number; // how far the arrow extends past body
 };
 
+export type ThermistorSpec = {
+  kind: "thermistor";
+  bodyW: number;
+  bodyH: number;
+  lead: number;
+  slashPad: number; // how far the diagonal slash extends past body
+};
+
+export type LdrSpec = {
+  kind: "ldr";
+  bodyW: number;
+  bodyH: number;
+  lead: number;
+  arrowPad: number; // distance from body to arrow tail
+  arrowLen: number; // arrow length
+};
+
+export type DiodeSpec = {
+  kind: "diode";
+  lead: number;
+  bodyW: number;
+  bodyH: number;
+  barW: number; // thickness of the cathode bar
+};
+
+export type LedSpec = {
+  kind: "led";
+  lead: number;
+  bodyW: number;
+  bodyH: number;
+  barW: number;
+
+  arrowPad: number; // distance from body to arrow tail
+  arrowLen: number; // arrow length
+};
+
 export type AmmeterSpec = {
   kind: "ammeter";
   lead: number;
@@ -94,6 +130,10 @@ export type SymbolSpec =
   | CapacitorSpec
   | SwitchSpec
   | VarResistorSpec
+  | ThermistorSpec
+  | LdrSpec
+  | DiodeSpec
+  | LedSpec
   | AmmeterSpec
   | VoltmeterSpec
   ;

@@ -10,6 +10,8 @@ export type IconKind =
   | "bulb"
   | "switch"
   | "varResistor"
+  | "thermistor"
+  | "ldr"
   | "ammeter"
   | "voltmeter"
   | "rotate"
@@ -139,6 +141,51 @@ const ICONS: Record<IconKind, string> = {
       <!-- A -->
       <path d="M9 16l3-8 3 8"/>
       <path d="M10.5 13h3"/>
+    </svg>
+  `,
+
+  thermistor: `
+  <svg viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round">
+    <!-- leads -->
+    <path d="M2 12h4"/>
+    <path d="M18 12h4"/>
+
+    <!-- resistor body -->
+    <rect x="6" y="8" width="12" height="8"/>
+
+    <!-- thermistor line -->
+    <path d="M6 20h4"/>
+    <path d="M10 20l10-15"/>
+  </svg>
+  `,
+
+  ldr: `
+  <svg viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round">
+
+    <!-- circle around component -->
+    <circle cx="12" cy="12" r="8"/>
+
+    <!-- resistor inside -->
+    <path d="M6 12h2"/>
+    <path d="M16 12h2"/>
+    <rect x="8" y="10" width="8" height="4"/>
+
+    <!-- arrow shaft -->
+    <path d="M1 2l3 2"/>
+
+    <!-- arrow head -->
+    <path d="M4 4l-4 0"/>
+    <path d="M4 4l0 -4"/>
     </svg>
   `,
 

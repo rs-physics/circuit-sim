@@ -89,6 +89,10 @@ export function createTempToolbar(
 
     { typeId: "ammeter", displayName: "Ammeter", icon: "ammeter" },
     { typeId: "voltmeter", displayName: "Voltmeter", icon: "voltmeter" },
+    { typeId: "thermistor", displayName: "Thermistor", icon: "thermistor" },
+    { typeId: "ldr", displayName: "LDR", icon: "ldr" },
+    { typeId: "diode", displayName: "Diode", icon: "varResistor" },
+    { typeId: "led", displayName: "LED", icon: "resistor" },
   ];
 
   const availableTypeIds = new Set(availableTypes.map((t) => t.typeId));
@@ -322,15 +326,50 @@ btnCopyPng.addEventListener("click", async () => {
   const spacer = document.createElement("div");
   spacer.className = "ui-spacer";
 
-  const hint = document.createElement("div");
-  hint.className = "ui-hint";
-  hint.textContent = "Right-click: cancel/deselect • D: debug • R: rotate • W: wire";
+  const shortcuts = document.createElement("div");
+  shortcuts.className = "ui-shortcuts";
+
+  const shortcutsTitle = document.createElement("div");
+  shortcutsTitle.className = "ui-shortcutsTitle";
+  shortcutsTitle.textContent = "Keyboard shortcuts";
+  shortcuts.appendChild(shortcutsTitle);
+
+  const shortcutsGrid = document.createElement("div");
+  shortcutsGrid.className = "ui-shortcutsGrid";
+  shortcuts.appendChild(shortcutsGrid);
+
+const addShortcut = (key: string, desc: string) => {
+  const item = document.createElement("div");
+  item.className = "ui-shortcutItem";
+
+  const k = document.createElement("div");
+  k.className = "ui-shortcutKey";
+  k.textContent = key;
+
+  const d = document.createElement("div");
+  d.className = "ui-shortcutDesc";
+  d.textContent = desc;
+
+  item.appendChild(k);
+  item.appendChild(d);
+  shortcutsGrid.appendChild(item);
+};
+
+  addShortcut("w", "Wire mode");
+  addShortcut("r", "Rotate");
+  addShortcut("Del", "Delete");
+  addShortcut("Right-click", "Cancel");
+  addShortcut("Middle-click", "Pan")
+  addShortcut("Scroll wheel", "Zoom")
+  addShortcut("d", "Debug mode");
+
+  spacer.className = "ui-spacer";
 
   toolbar.appendChild(toolsGroup);
   toolbar.appendChild(compGroup);
   toolbar.appendChild(actionsGroup);
-  toolbar.appendChild(spacer);
-  toolbar.appendChild(hint);
+  toolbar.appendChild(spacer);    // keeps any later stuff pushed right
+  toolbar.appendChild(shortcuts);
 
   const canvasHost = document.createElement("div");
   canvasHost.className = "ui-canvasHost ui-panel";
