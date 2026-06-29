@@ -106,18 +106,6 @@ export class App {
       applyMode(mode); // this is the function we just created
     });
 
-
-    // Single-mode toolbar now drives selection.
-    // Keep App's activeTypeId in sync when a component mode is chosen.
-    /*
-    ui.onModeChange((mode) => {
-      if (mode !== "select" && mode !== "wire") {
-        activeTypeId = mode; // mode is the component typeId
-      }
-      doRender();
-    });
-    */
-
     // -----------------------------
     // 4) Core editor state + view/camera
     // -----------------------------
