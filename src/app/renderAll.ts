@@ -5,11 +5,15 @@ import type { EditorState } from "../editor/state";
 import type { SchematicSvg } from "../render/schematicSvg";
 import { getComponentType } from "../editor/registry";
 import type { Camera } from "../editor/camera";
+import type { SimState } from "../sim/simState";
+import { rotatePoint } from "../editor/geom";
+import { readableWorldRotation } from "../render/readableRotation";
 
 export type RenderAllDeps = {
   view: SchematicSvg;
   grid: Grid;
   state: EditorState;
+  simState: SimState;
 
   // camera
   camera: Camera;
@@ -35,11 +39,22 @@ export type RenderAllDeps = {
   dragWirePreview: { a: Point; b: Point }[];
 };
 
+//Helper function to deal with rotating labels
+function labelPositionFromOffset(inst: ComponentInstance, localOffset: Point): Point {
+  const rotatedOffset = rotatePoint(localOffset, inst.rotation);
+
+  return {
+    x: inst.pos.x + rotatedOffset.x,
+    y: inst.pos.y + rotatedOffset.y,
+  };
+}
+
 export function renderAll(deps: RenderAllDeps) {
   const {
     view,
     grid,
     state,
+    simState,
     camera,
 
     showDebug,
@@ -77,9 +92,9 @@ export function renderAll(deps: RenderAllDeps) {
   // ---------------------------------------------------------------------------
   for (const w of state.wires) {
     const selected =
-      hasSelection &&
-      state.selection!.kind === "wire" &&
-      state.selection!.id === w.id;
+        hasSelection &&
+        state.selection!.kind === "wire" &&
+        state.selection!.id === w.id;
 
     view.drawWireSegment(w, { selected });
   }
@@ -99,11 +114,28 @@ export function renderAll(deps: RenderAllDeps) {
     const t = getComponentType(inst.typeId);
 
     const selected =
-      hasSelection &&
-      state.selection!.kind === "component" &&
-      state.selection!.id === inst.id;
+        hasSelection &&
+        state.selection!.kind === "component" &&
+        state.selection!.id === inst.id;
 
     t.render(view, inst, { selected });
+
+    // Component label (resistance, voltmeter reading, etc.) — each
+    // ComponentType decides its own content via displayLabel(), and can
+    // optionally decide its own position via displayLabelPosition().
+    const label = t.displayLabel?.(inst, simState);
+
+    if (label) {
+      const localOffset = t.displayLabelOffset
+          ? t.displayLabelOffset(inst)
+          : { x: 0, y: -25 };
+
+      const labelPos = labelPositionFromOffset(inst, localOffset);
+
+      view.drawComponentLabel(labelPos, label, {
+        rotation: readableWorldRotation(inst.rotation),
+      });
+    }
   }
 
   // ---------------------------------------------------------------------------

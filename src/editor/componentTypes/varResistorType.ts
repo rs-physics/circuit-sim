@@ -2,13 +2,16 @@ import type { ComponentType, SymbolSpec } from "../componentType";
 import type { ComponentInstance, PortDef, BBox } from "../types";
 import type { Point } from "../grid";
 import { rotatePoint } from "../geom";
+import type {SimRole} from "../../sim/simRole";
+
+const DEFAULT_RESISTOR_R = 100;
 
 export class VarResistorType implements ComponentType {
   typeId = "varResistor";
   displayName = "Var. Resistor";
 
   defaultParams(): Record<string, number> {
-    return { R: 100 };
+    return { R: DEFAULT_RESISTOR_R };
   }
 
   symbolSpec(): SymbolSpec {
@@ -18,6 +21,7 @@ export class VarResistorType implements ComponentType {
       bodyH: 28,
       lead: 15,
       arrowPad: 14,
+      rotationMode: "readable",
     };
   }
 
@@ -58,5 +62,25 @@ export class VarResistorType implements ComponentType {
 
   render(view: any, inst: ComponentInstance, opts = {}) {
     view.drawComponentSymbol(inst, this.symbolSpec(), opts);
+  }
+
+  /**
+   * Simulation role: ideal resistor.
+   * R is taken directly from the instance params
+   */
+  simRole(inst: ComponentInstance): SimRole {
+    let resistance: number;
+
+    if (inst.params.R !== undefined && inst.params.R !== null) {
+      resistance = inst.params.R;
+    }
+    else {
+      resistance = DEFAULT_RESISTOR_R;
+    }
+
+    return {
+      kind: "resistor",
+      R: resistance,
+    };
   }
 }

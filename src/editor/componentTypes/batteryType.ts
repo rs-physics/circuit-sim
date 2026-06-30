@@ -2,13 +2,17 @@ import type { ComponentType, SymbolSpec } from "../componentType";
 import type { ComponentInstance, PortDef, BBox } from "../types";
 import type { Point } from "../grid";
 import { rotatePoint } from "../geom";
+import type {SimRole} from "../../sim/simRole.ts";
+import type {SimState} from "../../sim/simState.ts";
+
+const DEFAULT_BATTERY_V = 9;
 
 export class BatteryType implements ComponentType {
   typeId = "battery";
   displayName = "Battery";
 
   defaultParams(): Record<string, number> {
-    return { V: 9 };
+    return { V: DEFAULT_BATTERY_V };
   }
 
   symbolSpec(): SymbolSpec {
@@ -59,4 +63,42 @@ export class BatteryType implements ComponentType {
   render(view: any, inst: ComponentInstance, opts = {}) {
     view.drawComponentSymbol(inst, this.symbolSpec(), opts);
   }
+
+  /**
+   * Simulation role: ideal voltage source.
+   * V is taken from instance params.
+   *
+   * Polarity convention: port "+" is the positive terminal.
+   * MNA will orient the voltage source accordingly when stamping.
+   */
+
+  simRole(inst: ComponentInstance): SimRole {
+    let voltage: number;
+
+    if (inst.params.V !== undefined && inst.params.V !== null) {
+      voltage = inst.params.V;
+    }
+    else {
+      voltage = DEFAULT_BATTERY_V;
+    }
+
+    return {
+      kind: "voltageSource",
+      V: voltage,
+    };
+  }
+
+  /**
+   * Display the battery's voltage value. Purely read-only for now —
+   * clicking to edit this value is a separate, later feature.
+   */
+  displayLabel(inst: ComponentInstance, _simState: SimState): string | null {
+    const v = inst.params.V ?? 1;
+    return `${v} V`;
+  }
+
+  displayLabelOffset(_inst: ComponentInstance): Point {
+    return { x: -25, y: -20 };
+  }
+
 }

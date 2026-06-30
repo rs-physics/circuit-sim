@@ -2,13 +2,16 @@ import type { ComponentType, SymbolSpec } from "../componentType";
 import type { ComponentInstance, PortDef, BBox } from "../types";
 import type { Point } from "../grid";
 import { rotatePoint } from "../geom";
+import type {SimRole} from "../../sim/simRole";
+
+const DEFAULT_RESISTOR_R = 12;
 
 export class BulbType implements ComponentType {
   typeId = "bulb";
   displayName = "Bulb";
 
   defaultParams(): Record<string, number> {
-    return { P: 5 }; // placeholder
+    return { R: DEFAULT_RESISTOR_R }; // placeholder
   }
 
   symbolSpec(): SymbolSpec {
@@ -56,5 +59,26 @@ export class BulbType implements ComponentType {
 
   render(view: any, inst: ComponentInstance, opts = {}) {
     view.drawComponentSymbol(inst, this.symbolSpec(), opts);
+  }
+
+  /**
+   * Simulation role: nonideal resistor.
+   * R is taken from a function.
+   * Current implementation using constant is placeholder only
+   */
+  simRole(inst: ComponentInstance): SimRole {
+    let resistance: number;
+
+    if (inst.params.R !== undefined && inst.params.R !== null) {
+      resistance = inst.params.R;
+    }
+    else {
+      resistance = DEFAULT_RESISTOR_R;
+    }
+
+    return {
+      kind: "resistor",
+      R: resistance,
+    };
   }
 }

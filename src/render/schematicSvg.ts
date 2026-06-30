@@ -107,10 +107,10 @@ export class SchematicSvg {
   isInsideCanvas(p: Point): boolean {
     const w = this.world;
     return (
-      p.x >= w.x &&
-      p.x <= w.x + w.width &&
-      p.y >= w.y &&
-      p.y <= w.y + w.height
+        p.x >= w.x &&
+        p.x <= w.x + w.width &&
+        p.y >= w.y &&
+        p.y <= w.y + w.height
     );
   }
 
@@ -156,12 +156,12 @@ export class SchematicSvg {
     const g = svgEl("g", { "pointer-events": "none" });
 
     g.appendChild(
-      svgEl("circle", {
-        cx: `${p.x}`,
-        cy: `${p.y}`,
-        r: "4",
-        fill: "black",
-      })
+        svgEl("circle", {
+          cx: `${p.x}`,
+          cy: `${p.y}`,
+          r: "4",
+          fill: "black",
+        })
     );
 
     const text = svgEl("text", {
@@ -178,6 +178,43 @@ export class SchematicSvg {
   }
 
   // ===========================================================================
+  // Component value labels (voltmeter/ammeter readings, etc.)
+  // ===========================================================================
+
+  /**
+   * Draw a small text label at a world position (e.g. a voltmeter reading).
+   * Deliberately plain for now — positioning/styling can be improved later
+   * once the underlying sim data is confirmed correct. Lives in mainG so
+   * it persists with the normal render pass (not debug-only, not preview).
+   */
+  drawComponentLabel(
+      p: Point,
+      text: string,
+      opts: { rotation?: number } = {}
+  ) {
+      const g = svgEl("g", { "pointer-events": "none" });
+
+      if (opts.rotation !== undefined) {
+          g.setAttribute("transform", `rotate(${opts.rotation} ${p.x} ${p.y})`);
+      }
+
+      const el = svgEl("text", {
+          x: `${p.x}`,
+          y: `${p.y}`,
+          "font-size": "14",
+          "font-family": "system-ui, sans-serif",
+          "text-anchor": "middle",
+          "dominant-baseline": "middle",
+          fill: "#1e90ff",
+      });
+
+      el.textContent = text;
+      g.appendChild(el);
+
+      this.mainG.appendChild(g);
+  }
+
+  // ===========================================================================
   // Wires
   // ===========================================================================
 
@@ -187,23 +224,23 @@ export class SchematicSvg {
    * - selected: thicker + highlighted colour
    */
   drawWireSegment(
-    seg: { a: Point; b: Point },
-    opts: { preview?: boolean; selected?: boolean } = {}
+      seg: { a: Point; b: Point },
+      opts: { preview?: boolean; selected?: boolean } = {}
   ) {
     const isPreview = !!opts.preview;
     const isSelected = !!opts.selected;
 
     this.wiresG.appendChild(
-      svgEl("line", {
-        x1: `${seg.a.x}`,
-        y1: `${seg.a.y}`,
-        x2: `${seg.b.x}`,
-        y2: `${seg.b.y}`,
-        stroke: isSelected ? "#1e90ff" : "black",
-        "stroke-width": isPreview ? "1" : isSelected ? "3" : "2",
-        "stroke-linecap": "round",
-        ...(isPreview ? { "stroke-dasharray": "6 4", opacity: "0.6" } : {}),
-      })
+        svgEl("line", {
+          x1: `${seg.a.x}`,
+          y1: `${seg.a.y}`,
+          x2: `${seg.b.x}`,
+          y2: `${seg.b.y}`,
+          stroke: isSelected ? "#1e90ff" : "black",
+          "stroke-width": isPreview ? "1" : isSelected ? "3" : "2",
+          "stroke-linecap": "round",
+          ...(isPreview ? { "stroke-dasharray": "6 4", opacity: "0.6" } : {}),
+        })
     );
   }
 
@@ -222,13 +259,13 @@ export class SchematicSvg {
 
     // Draw a white background for the full world "sheet".
     this.gridG.appendChild(
-      svgEl("rect", {
-        x: `${world.x}`,
-        y: `${world.y}`,
-        width: `${world.width}`,
-        height: `${world.height}`,
-        fill: "white",
-      })
+        svgEl("rect", {
+          x: `${world.x}`,
+          y: `${world.y}`,
+          width: `${world.width}`,
+          height: `${world.height}`,
+          fill: "white",
+        })
     );
 
     // Visible region = camera viewBox clamped to the world rectangle.
@@ -246,32 +283,32 @@ export class SchematicSvg {
     // verticals
     for (let x = startX; x <= endX; x += gridSize) {
       this.gridG.appendChild(
-        svgEl("line", {
-          x1: `${x}`,
-          y1: `${startY}`,
-          x2: `${x}`,
-          y2: `${endY}`,
-          stroke: "#e8e8e8",
-          "stroke-width": "1",
-          "vector-effect": "non-scaling-stroke",
-          "shape-rendering": "crispEdges",
-        })
+          svgEl("line", {
+            x1: `${x}`,
+            y1: `${startY}`,
+            x2: `${x}`,
+            y2: `${endY}`,
+            stroke: "#e8e8e8",
+            "stroke-width": "1",
+            "vector-effect": "non-scaling-stroke",
+            "shape-rendering": "crispEdges",
+          })
       );
     }
 
     // horizontals
     for (let y = startY; y <= endY; y += gridSize) {
       this.gridG.appendChild(
-        svgEl("line", {
-          x1: `${startX}`,
-          y1: `${y}`,
-          x2: `${endX}`,
-          y2: `${y}`,
-          stroke: "#e8e8e8",
-          "stroke-width": "1",
-          "vector-effect": "non-scaling-stroke",
-          "shape-rendering": "crispEdges",
-        })
+          svgEl("line", {
+            x1: `${startX}`,
+            y1: `${y}`,
+            x2: `${endX}`,
+            y2: `${y}`,
+            stroke: "#e8e8e8",
+            "stroke-width": "1",
+            "vector-effect": "non-scaling-stroke",
+            "shape-rendering": "crispEdges",
+          })
       );
     }
 
@@ -288,9 +325,9 @@ export class SchematicSvg {
    * - real symbols go into mainG
    */
   drawComponentSymbol(
-    inst: { id: string; pos: Point; rotation: number },
-    spec: SymbolSpec,
-    opts: { preview?: boolean; selected?: boolean } = {}
+      inst: { id: string; pos: Point; rotation: number },
+      spec: SymbolSpec,
+      opts: { preview?: boolean; selected?: boolean } = {}
   ) {
     const isPreview = !!opts.preview;
     const isSelected = !!opts.selected;

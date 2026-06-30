@@ -14,6 +14,9 @@ import { createTempToolbar } from "../ui/tempToolbar";
 import { normalizeAndSpliceWires } from "../editor/wireNormalize";
 import { exportSvgAsPng, copySvgAsPngToClipboard } from "../render/exportSvgPng";
 import { cancelCommand } from "./commands";
+import { createEmptySimState } from "../sim/simState";
+import { buildGraph, extractMnaGraph } from "../sim/graph";
+import { solveCircuit } from "../sim/mna";
 
 /**
  * V1 uses UUIDs for everything. Works fine for an in-memory editor.
@@ -107,9 +110,10 @@ export class App {
     });
 
     // -----------------------------
-    // 4) Core editor state + view/camera
+    // 4) Core editor state, simstate + view/camera
     // -----------------------------
     const state = new EditorState();
+    const simState = createEmptySimState();
 
     const grid = new Grid(25);
     const view = new SchematicSvg(ui.canvasHost);
@@ -163,10 +167,25 @@ export class App {
     /**
      * Normalise wire geometry: merges collinear segments, splits overlaps, etc.
      * This is called after any operation that edits wires.
+     * Also
      */
-    const normalizeWires = () => {
-      state.wires = normalizeAndSpliceWires(state.wires, state.components, getComponentType);
+    const recomputeCircuit = () => {
+      state.wires = normalizeAndSpliceWires(
+          state.wires,
+          state.components,
+          getComponentType
+      );
+
+      const fullGraph = buildGraph(state.wires, state.components, getComponentType);
+      const mnaGraph = extractMnaGraph(fullGraph);
+
+      simState.graph = fullGraph;
+      simState.solved =
+          mnaGraph.branches.length > 0
+              ? solveCircuit(mnaGraph)
+              : null;
     };
+
 
     /**
      * Delete whatever is currently selected.
@@ -186,7 +205,7 @@ export class App {
 
         case "wire": {
           state.wires = state.wires.filter((w) => w.id !== sel.id);
-          normalizeWires();
+          recomputeCircuit();
           move?.clearSelection();
           doRender();
           return;
@@ -293,6 +312,7 @@ export class App {
         view,
         grid,
         state,
+        simState,
         camera: cam.getCamera(),
 
         showDebug,
@@ -324,7 +344,7 @@ export class App {
       view,
       getComponentType,
       newId,
-      normalizeWires,
+      normalizeWires: recomputeCircuit,
       requestRender: doRender,
     });
 
@@ -368,7 +388,7 @@ export class App {
       grid,
       state,
       newId,
-      normalizeWires,
+      normalizeWires: recomputeCircuit,
       isComponentPortPoint,
       isPointOnWire,
       manhattanSegments,

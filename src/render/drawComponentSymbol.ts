@@ -13,51 +13,56 @@ import { buildAmmeterGroup } from "./symbols/drawAmmeter";
 import { buildVoltmeterGroup } from "./symbols/drawVoltmeter";
 import { buildDiodeGroup } from "./symbols/drawDiode";
 import { buildLedGroup } from "./symbols/drawLed";
+import { symbolDisplayRotation } from "./readableRotation";
 
 
 export function buildSymbolGroup(
-  center: Point,
-  rotationDeg: number,
-  spec: SymbolSpec,
-  flags: SymbolDrawFlags
+    center: Point,
+    rotationDeg: number,
+    spec: SymbolSpec,
+    flags: SymbolDrawFlags
 ): SVGGElement {
+  const visualRotationDeg = symbolDisplayRotation(
+      rotationDeg,
+      spec.rotationMode ?? "full"
+  );
+
   switch (spec.kind) {
     case "rectResistor":
-      return buildRectResistorGroup(center, rotationDeg, spec, flags);
+      return buildRectResistorGroup(center, visualRotationDeg, spec, flags);
 
     case "battery":
-      return buildBatteryGroup(center, rotationDeg, spec, flags);
+      return buildBatteryGroup(center, visualRotationDeg, spec, flags);
 
     case "bulb":
-      return buildBulbGroup(center, rotationDeg, spec, flags);
-    
+      return buildBulbGroup(center, visualRotationDeg, spec, flags);
+
     case "capacitor":
-      return buildCapacitorGroup(center, rotationDeg, spec, flags);
-    
+      return buildCapacitorGroup(center, visualRotationDeg, spec, flags);
+
     case "switch":
-      return buildSwitchGroup(center, rotationDeg, spec, flags);
+      return buildSwitchGroup(center, visualRotationDeg, spec, flags);
 
     case "varResistor":
-      return buildVarResistorGroup(center, rotationDeg, spec, flags);
+      return buildVarResistorGroup(center, visualRotationDeg, spec, flags);
 
     case "thermistor":
-      return buildThermistorGroup(center, rotationDeg, spec, flags);
+      return buildThermistorGroup(center, visualRotationDeg, spec, flags);
 
     case "ldr":
-      return buildLdrGroup(center, rotationDeg, spec, flags);
+      return buildLdrGroup(center, visualRotationDeg, spec, flags);
 
     case "diode":
-      return buildDiodeGroup(center, rotationDeg, spec, flags);
+      return buildDiodeGroup(center, visualRotationDeg, spec, flags);
 
     case "led":
-      return buildLedGroup(center, rotationDeg, spec, flags);
+      return buildLedGroup(center, visualRotationDeg, spec, flags);
 
     case "ammeter":
-      return buildAmmeterGroup(center, rotationDeg, spec, flags);
+      return buildAmmeterGroup(center, visualRotationDeg, spec, flags);
 
     case "voltmeter":
-      return buildVoltmeterGroup(center, rotationDeg, spec, flags);
-
+      return buildVoltmeterGroup(center, visualRotationDeg, spec, flags);
   }
 
   throw new Error(`Unsupported symbol kind: ${(spec as any).kind}`);

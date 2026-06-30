@@ -2,6 +2,9 @@ import type { ComponentType, SymbolSpec } from "../componentType";
 import type { ComponentInstance, PortDef, BBox } from "../types";
 import type { Point } from "../grid";
 import { rotatePoint } from "../geom";
+import type {SimRole} from "../../sim/simRole";
+
+const DEFAULT_RESISTOR_R = 10000;
 
 export class LdrType implements ComponentType {
   typeId = "ldr";
@@ -9,7 +12,7 @@ export class LdrType implements ComponentType {
 
   defaultParams(): Record<string, number> {
     // Placeholder for later simulation use
-    return { R: 10000 };
+    return { R: DEFAULT_RESISTOR_R };
   }
 
   symbolSpec(): SymbolSpec {
@@ -20,6 +23,7 @@ export class LdrType implements ComponentType {
       lead: 15,
       arrowPad: 16,   // how far arrows sit from the body
       arrowLen: 14,   // arrow length
+      rotationMode: "readable",
     };
   }
 
@@ -62,5 +66,26 @@ export class LdrType implements ComponentType {
 
   render(view: any, inst: ComponentInstance, opts = {}) {
     view.drawComponentSymbol(inst, this.symbolSpec(), opts);
+  }
+
+  /**
+   * Simulation role: nonideal resistor.
+   * R is taken from a function.
+   * Current implementation using constant is placeholder only
+   */
+  simRole(inst: ComponentInstance): SimRole {
+    let resistance: number;
+
+    if (inst.params.R !== undefined && inst.params.R !== null) {
+      resistance = inst.params.R;
+    }
+    else {
+      resistance = DEFAULT_RESISTOR_R;
+    }
+
+    return {
+      kind: "resistor",
+      R: resistance,
+    };
   }
 }

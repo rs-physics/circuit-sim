@@ -1,6 +1,9 @@
 import type { ComponentInstance, PortDef, BBox } from "./types";
 import type { Point } from "./grid";
 import type { SchematicSvg } from "../render/schematicSvg";
+import type { SimRole } from "../sim/simRole";
+import type { SimState } from "../sim/simState";
+import type { SymbolRotationMode } from "../render/readableRotation";
 
 /**
  * Rendering options passed down to a ComponentType renderer.
@@ -24,6 +27,19 @@ export type RenderOpts = {
  * - ground
  * etc.
  */
+
+export type SymbolSpecBase = {
+  /**
+   * Controls visual rotation only.
+   *
+   * "full" = draw at true component rotation.
+   * "readable" = draw 180° components upright, while ports/simulation still use true rotation.
+   *
+   * If omitted, renderer should treat it as "full".
+   */
+  rotationMode?: SymbolRotationMode;
+};
+
 export type RectResistorSpec = {
   kind: "rectResistor";
   bodyW: number;
@@ -57,7 +73,7 @@ export type SwitchSpec = {
   lead: number;       // from port to contact
   contactGap: number; // gap between contacts
   leverLen: number;   // length of lever arm
-  leverRise: number;  // how “open” the switch looks (y offset)
+  leverRise: number;  // how "open" the switch looks (y offset)
 };
 
 export type VarResistorSpec = {
@@ -99,7 +115,6 @@ export type LedSpec = {
   bodyW: number;
   bodyH: number;
   barW: number;
-
   arrowPad: number; // distance from body to arrow tail
   arrowLen: number; // arrow length
 };
@@ -116,28 +131,24 @@ export type VoltmeterSpec = {
   radius: number;
 };
 
-
-
-
 /**
  * Union of all supported symbol specs.
- * as we add more components they are exported here.
+ * As we add more components they are exported here.
  */
-export type SymbolSpec =
-  | RectResistorSpec
-  | BatterySpec
-  | BulbSpec
-  | CapacitorSpec
-  | SwitchSpec
-  | VarResistorSpec
-  | ThermistorSpec
-  | LdrSpec
-  | DiodeSpec
-  | LedSpec
-  | AmmeterSpec
-  | VoltmeterSpec
-  ;
-
+export type SymbolSpec = SymbolSpecBase & (
+    | RectResistorSpec
+    | BatterySpec
+    | BulbSpec
+    | CapacitorSpec
+    | SwitchSpec
+    | VarResistorSpec
+    | ThermistorSpec
+    | LdrSpec
+    | DiodeSpec
+    | LedSpec
+    | AmmeterSpec
+    | VoltmeterSpec
+    );
 
 /**
  * ComponentType is the "class" of a component (resistor, capacitor, etc.).
@@ -176,4 +187,36 @@ export interface ComponentType {
    * Used by wiring logic / snapping / debug overlays.
    */
   portWorldPositions(inst: ComponentInstance): { name: string; pos: Point }[];
+
+  /**
+   * Electrical role this component plays in simulation.
+   *
+   * Optional — components that don't implement this (e.g. decorative or
+   * not-yet-simulated types) will be flagged to the user as unsupported
+   * rather than silently ignored or crashing the solver.
+   *
+   * v2a: resistor, voltageSource implement this.
+   * v2b: ammeter, voltmeter, nonLinearResistor (bulb, diode etc.)
+   * v2c: capacitor (open circuit in DC steady state)
+   */
+  simRole?(inst: ComponentInstance): SimRole;
+
+  /**
+   * Text to display in a label above this component, drawn via
+   * SchematicSvg.drawComponentLabel(). One shared rendering primitive
+   * for all components — styling changes happen in one place — but each
+   * type decides its own content here.
+   *
+   * Examples: a resistor returns its resistance ("100Ω"), a voltmeter
+   * looks up its reading from simState and returns it ("9.00 V").
+   *
+   * Return null to show no label (e.g. a wire-only component, or a
+   * voltmeter with no solved circuit yet).
+   *
+   * This is purely presentational/read-only. Editable parameter input
+   * (e.g. clicking a resistor's value to change it) is a separate,
+   * later concern — not handled here.
+   */
+  displayLabel?(inst: ComponentInstance, simState: SimState): string | null;
+  displayLabelOffset?(inst: ComponentInstance): Point;
 }

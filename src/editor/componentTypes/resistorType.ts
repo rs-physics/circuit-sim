@@ -1,6 +1,8 @@
 import type { ComponentType, RenderOpts, SymbolSpec } from "../componentType";
 import type { ComponentInstance, PortDef, BBox } from "../types";
 import type { Point } from "../grid";
+import type { SimRole } from "../../sim/simRole";
+import type { SimState } from "../../sim/simState";
 import { rotatePoint } from "../geom";
 
 /**
@@ -60,7 +62,6 @@ export class ResistorType implements ComponentType {
   ports(): PortDef[] {
     const s = this.getSpec();
     const portOffset = s.lead + s.bodyW / 2;
-
     return [
       { name: "A", offset: { x: -portOffset, y: 0 } },
       { name: "B", offset: { x: +portOffset, y: 0 } },
@@ -73,10 +74,8 @@ export class ResistorType implements ComponentType {
    */
   bbox(): BBox {
     const s = this.getSpec();
-
     const halfW = s.lead + s.bodyW / 2;
-    const halfH = Math.max(s.bodyH / 2, 2); // keep a minimum thickness for easy clicking
-
+    const halfH = Math.max(s.bodyH / 2, 2);
     return { x: -halfW, y: -halfH, w: halfW * 2, h: halfH * 2 };
   }
 
@@ -103,5 +102,29 @@ export class ResistorType implements ComponentType {
       preview: !!opts.preview,
       selected: !!opts.selected,
     });
+  }
+
+  /**
+   * Simulation role: ideal resistor.
+   * R is taken directly from the instance params.
+   * Falls back to 1Ω if somehow undefined (should not happen in practice).
+   */
+  simRole(inst: ComponentInstance): SimRole {
+    return { kind: "resistor", R: inst.params.R ?? 1 };
+  }
+
+  /**
+   * Display the resistor's resistance value. Purely read-only for now —
+   * clicking to edit this value is a separate, later feature.
+   * simState isn't needed here since R comes straight from the instance's
+   * own params, not from anything that needs solving.
+   */
+  displayLabel(inst: ComponentInstance, _simState: SimState): string | null {
+    const r = inst.params.R ?? 1;
+    return `${r} Ω`;
+  }
+
+  displayLabelOffset(_inst: ComponentInstance): Point {
+    return { x: 0, y: 0 };
   }
 }

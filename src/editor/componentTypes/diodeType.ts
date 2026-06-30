@@ -32,8 +32,8 @@ export class DiodeType implements ComponentType {
     const portOffset = s.lead + s.bodyW / 2;
 
     return [
-      { name: "A", offset: { x: -portOffset, y: 0 } }, // anode
-      { name: "K", offset: { x: +portOffset, y: 0 } }, // cathode
+      { name: "+", offset: { x: -portOffset, y: 0 } }, // anode
+      { name: "-", offset: { x: +portOffset, y: 0 } }, // cathode
     ];
   }
 

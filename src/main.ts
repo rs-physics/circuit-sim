@@ -3,11 +3,11 @@
 
 import "./style.css";
 import { App } from "./app/app";
-
 /**
  * Application bootstrap.
  *
  * Keep this file minimal.
  * All real logic lives inside App.
  */
+console.log("startup...")
 new App().start();
